@@ -2,7 +2,7 @@
 // offline and so browsers recognize this as a real installable PWA.
 // This only caches the static shell, never any of your module/record data
 // or your Anthropic/Google keys — those live only in localStorage.
-const CACHE = 'note-goat-shell-v3';
+const CACHE = 'note-goat-shell-v4';
 const ASSETS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
