@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+
+# Cloudflare Worker local dev artifacts — never commit secrets or build cache
+worker/.wrangler/
+worker/.dev.vars
+worker/node_modules/

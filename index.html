@@ -1,0 +1,2459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Note Goat</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icons/icon-180.png" />
+<link rel="icon" href="icons/icon-192.png" />
+<meta name="theme-color" content="#2C6E7E" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Note Goat" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js"></script>
+<style>
+:root{
+  /* Interface panels — solid, calm, easy to read. The stripes live in the
+     page background only; nothing you have to read sits on top of them. */
+  --panel: #FFFCF5;
+  --surface: #FFFFFF;
+  --surface-sunk: #F3EEE1;
+  --ink: #2B2A27;
+  --ink-dim: #6E6A62;
+  --ink-faint: #9A958A;
+  --line: #E9E2D2;
+  --line-strong: #DCD1B6;
+  --accent: #2C6E7E;
+  --accent-soft: rgba(44,110,126,0.12);
+  --accent-ink: #1F4E5A;
+  --warn: #A8843F;
+  --warn-soft: rgba(168,132,63,0.14);
+  --danger: #A13E63;
+  --danger-soft: rgba(161,62,99,0.1);
+  --font: 'Inter', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --radius: 10px;
+
+  /* Watercolor stripe palette — pulled from the reference swatch. Used for
+     the page background and, sparingly, for per-item type-color dots. */
+  --wc-1: #2FB4C2; /* turquoise */
+  --wc-2: #3E6FA6; /* blue */
+  --wc-3: #2C7A68; /* teal */
+  --wc-4: #A13E63; /* magenta */
+  --wc-5: #7C8A4A; /* olive */
+  --wc-6: #C39A52; /* gold */
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  color:var(--ink);
+  font-family:var(--font);
+  font-size:14px;
+  line-height:1.5;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  padding:22px;
+  background:
+    linear-gradient(rgba(255,255,255,0.32), rgba(255,255,255,0.32)),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27312%27%20height%3D%27400%27%20viewBox%3D%270%200%20312%20400%27%3E%0A%3Cfilter%20id%3D%27wc%27%20x%3D%27-15%25%27%20y%3D%27-10%25%27%20width%3D%27130%25%27%20height%3D%27120%25%27%3E%0A%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.012%200.009%27%20numOctaves%3D%272%27%20seed%3D%2711%27%20stitchTiles%3D%27stitch%27%20result%3D%27n%27%2F%3E%0A%3CfeDisplacementMap%20in%3D%27SourceGraphic%27%20in2%3D%27n%27%20scale%3D%2716%27%20xChannelSelector%3D%27R%27%20yChannelSelector%3D%27G%27%20result%3D%27disp%27%2F%3E%0A%3CfeGaussianBlur%20in%3D%27disp%27%20stdDeviation%3D%272.4%27%2F%3E%0A%3C%2Ffilter%3E%0A%3Cg%20filter%3D%27url%28%23wc%29%27%3E%0A%3Crect%20x%3D%27-10%27%20y%3D%270%27%20width%3D%27332%27%20height%3D%27400%27%20fill%3D%27%23FBF3E3%27%2F%3E%0A%3Crect%20x%3D%270%27%20%20%20y%3D%270%27%20width%3D%2726%27%20height%3D%27400%27%20fill%3D%27%232FB4C2%27%2F%3E%0A%3Crect%20x%3D%2730%27%20%20y%3D%270%27%20width%3D%2734%27%20height%3D%27400%27%20fill%3D%27%233E6FA6%27%2F%3E%0A%3Crect%20x%3D%2768%27%20%20y%3D%270%27%20width%3D%2728%27%20height%3D%27400%27%20fill%3D%27%232C7A68%27%2F%3E%0A%3Crect%20x%3D%27100%27%20y%3D%270%27%20width%3D%2722%27%20height%3D%27400%27%20fill%3D%27%23A13E63%27%2F%3E%0A%3Crect%20x%3D%27126%27%20y%3D%270%27%20width%3D%2724%27%20height%3D%27400%27%20fill%3D%27%237C8A4A%27%2F%3E%0A%3Crect%20x%3D%27154%27%20y%3D%270%27%20width%3D%2726%27%20height%3D%27400%27%20fill%3D%27%232FB4C2%27%2F%3E%0A%3Crect%20x%3D%27184%27%20y%3D%270%27%20width%3D%2736%27%20height%3D%27400%27%20fill%3D%27%23C39A52%27%2F%3E%0A%3Crect%20x%3D%27224%27%20y%3D%270%27%20width%3D%2730%27%20height%3D%27400%27%20fill%3D%27%233E6FA6%27%2F%3E%0A%3Crect%20x%3D%27258%27%20y%3D%270%27%20width%3D%2728%27%20height%3D%27400%27%20fill%3D%27%232C7A68%27%2F%3E%0A%3Crect%20x%3D%27290%27%20y%3D%270%27%20width%3D%2722%27%20height%3D%27400%27%20fill%3D%27%23A13E63%27%2F%3E%0A%3C%2Fg%3E%0A%3C%2Fsvg%3E")
+    repeat;
+  background-size: auto, 312px 400px;
+  background-attachment: fixed;
+}
+button{font-family:var(--font);cursor:pointer;}
+input,textarea,select{font-family:var(--font);font-size:14px;}
+h1,h2,h3{margin:0;}
+::selection{background:var(--accent-soft);}
+
+/* The shell is the whole visible interface — one solid, legible panel
+   floating over the watercolor stripe field painted on <body>. The stripes
+   are the app's personality; nothing you have to read sits directly on
+   top of them. */
+.shell{
+  display:flex;
+  width:100%;max-width:1360px;
+  min-height:calc(100vh - 44px);
+  background:var(--panel);
+  border-radius:20px;
+  box-shadow:0 24px 60px rgba(35,30,20,0.16), 0 2px 8px rgba(35,30,20,0.06);
+  overflow:hidden;
+  align-self:flex-start;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar{
+  width:230px;flex-shrink:0;
+  background:var(--surface);
+  border-right:1px solid var(--line);
+  display:flex;flex-direction:column;
+}
+.brand{padding:22px 18px 16px;position:relative;overflow:hidden;}
+.brand-watercolor{position:absolute;inset:0;background:
+    linear-gradient(rgba(255,255,255,0.18), rgba(255,255,255,0.18)),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27312%27%20height%3D%27400%27%20viewBox%3D%270%200%20312%20400%27%3E%0A%3Cfilter%20id%3D%27wc%27%20x%3D%27-15%25%27%20y%3D%27-10%25%27%20width%3D%27130%25%27%20height%3D%27120%25%27%3E%0A%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.012%200.009%27%20numOctaves%3D%272%27%20seed%3D%2711%27%20stitchTiles%3D%27stitch%27%20result%3D%27n%27%2F%3E%0A%3CfeDisplacementMap%20in%3D%27SourceGraphic%27%20in2%3D%27n%27%20scale%3D%2716%27%20xChannelSelector%3D%27R%27%20yChannelSelector%3D%27G%27%20result%3D%27disp%27%2F%3E%0A%3CfeGaussianBlur%20in%3D%27disp%27%20stdDeviation%3D%272.4%27%2F%3E%0A%3C%2Ffilter%3E%0A%3Cg%20filter%3D%27url%28%23wc%29%27%3E%0A%3Crect%20x%3D%27-10%27%20y%3D%270%27%20width%3D%27332%27%20height%3D%27400%27%20fill%3D%27%23FBF3E3%27%2F%3E%0A%3Crect%20x%3D%270%27%20%20%20y%3D%270%27%20width%3D%2726%27%20height%3D%27400%27%20fill%3D%27%232FB4C2%27%2F%3E%0A%3Crect%20x%3D%2730%27%20%20y%3D%270%27%20width%3D%2734%27%20height%3D%27400%27%20fill%3D%27%233E6FA6%27%2F%3E%0A%3Crect%20x%3D%2768%27%20%20y%3D%270%27%20width%3D%2728%27%20height%3D%27400%27%20fill%3D%27%232C7A68%27%2F%3E%0A%3Crect%20x%3D%27100%27%20y%3D%270%27%20width%3D%2722%27%20height%3D%27400%27%20fill%3D%27%23A13E63%27%2F%3E%0A%3Crect%20x%3D%27126%27%20y%3D%270%27%20width%3D%2724%27%20height%3D%27400%27%20fill%3D%27%237C8A4A%27%2F%3E%0A%3Crect%20x%3D%27154%27%20y%3D%270%27%20width%3D%2726%27%20height%3D%27400%27%20fill%3D%27%232FB4C2%27%2F%3E%0A%3Crect%20x%3D%27184%27%20y%3D%270%27%20width%3D%2736%27%20height%3D%27400%27%20fill%3D%27%23C39A52%27%2F%3E%0A%3Crect%20x%3D%27224%27%20y%3D%270%27%20width%3D%2730%27%20height%3D%27400%27%20fill%3D%27%233E6FA6%27%2F%3E%0A%3Crect%20x%3D%27258%27%20y%3D%270%27%20width%3D%2728%27%20height%3D%27400%27%20fill%3D%27%232C7A68%27%2F%3E%0A%3Crect%20x%3D%27290%27%20y%3D%270%27%20width%3D%2722%27%20height%3D%27400%27%20fill%3D%27%23A13E63%27%2F%3E%0A%3C%2Fg%3E%0A%3C%2Fsvg%3E")
+    repeat;
+  background-size:auto, 156px 200px;
+  opacity:0.85;
+}
+.brand-inner{position:relative;z-index:1;}
+.brand-mark{
+  font-size:17px;font-weight:700;letter-spacing:-0.01em;
+  background:rgba(255,252,245,0.82);backdrop-filter:blur(4px);
+  display:inline-block;padding:3px 9px;border-radius:7px;
+}
+.brand-sub{font-family:var(--font-mono);font-size:10px;color:var(--ink-dim);margin-top:5px;text-transform:uppercase;letter-spacing:0.06em;
+  background:rgba(255,252,245,0.82);display:inline-block;padding:2px 8px;border-radius:6px;}
+
+.nav-section{padding:6px 10px;}
+.nav-btn{
+  display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  background:none;border:none;color:var(--ink-dim);
+  padding:8px 10px;font-size:13.5px;border-radius:7px;margin-bottom:1px;
+}
+.nav-btn:hover{background:var(--surface-sunk);color:var(--ink);}
+.nav-btn.active{background:var(--accent-soft);color:var(--accent-ink);font-weight:600;}
+.nav-btn .dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--ink-faint);}
+
+nav.module-list{flex:1;overflow-y:auto;padding:8px 10px;}
+.nav-label{font-family:var(--font-mono);font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.06em;padding:10px 10px 4px;}
+.module-row{display:flex;align-items:stretch;margin-bottom:1px;}
+.module-row .nav-btn{flex:1;}
+.module-row .gear{
+  background:none;border:none;color:var(--ink-faint);width:26px;border-radius:6px;font-size:12px;flex-shrink:0;
+}
+.module-row .gear:hover{background:var(--surface-sunk);color:var(--ink);}
+.module-row.active .nav-btn{background:var(--accent-soft);color:var(--accent-ink);font-weight:600;}
+
+.sidebar-footer{padding:10px;border-top:1px solid var(--line);}
+.btn-library{
+  width:100%;background:var(--surface-sunk);border:1px solid var(--line-strong);
+  color:var(--ink);padding:9px;font-size:13px;border-radius:8px;font-weight:600;
+}
+.btn-library:hover{border-color:var(--accent);color:var(--accent-ink);}
+
+/* ---------- Main ---------- */
+.main{flex:1;min-width:0;padding:28px 34px 60px;max-width:960px;background:var(--panel);overflow-y:auto;}
+.page-title{font-size:22px;font-weight:700;margin-bottom:2px;}
+.page-sub{color:var(--ink-dim);font-size:13px;margin-bottom:22px;}
+
+/* ---------- Cards (home) ---------- */
+.cards{display:flex;flex-direction:column;gap:12px;}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:16px 18px;cursor:pointer;
+}
+.card-head:hover{background:var(--surface-sunk);}
+.card-head-left{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.card-title{font-size:14px;font-weight:600;}
+.card-preview{font-size:12.5px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.card-count{
+  font-family:var(--font-mono);font-size:12px;color:var(--ink-dim);
+  background:var(--surface-sunk);border-radius:20px;padding:3px 10px;flex-shrink:0;
+}
+.card-chevron{color:var(--ink-faint);font-size:12px;transition:transform .15s;flex-shrink:0;}
+.card.open .card-chevron{transform:rotate(90deg);}
+.card-body{display:none;border-top:1px solid var(--line);padding:6px 18px 14px;}
+.card.open .card-body{display:block;}
+.card-body .empty{color:var(--ink-faint);font-size:13px;padding:12px 2px;}
+
+.item-row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line);}
+.item-row:last-child{border-bottom:none;}
+.type-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--ink-faint);}
+.item-row .item-main{flex:1;min-width:0;cursor:pointer;}
+.item-row .item-title{font-size:13.5px;font-weight:500;}
+.item-row .item-meta{font-size:11.5px;color:var(--ink-dim);}
+.item-row .item-title:hover{color:var(--accent-ink);text-decoration:underline;}
+
+/* Quick capture */
+.quick-capture{padding:16px 18px 18px;}
+.quick-capture textarea{
+  width:100%;min-height:70px;resize:vertical;border:1px solid var(--line-strong);
+  border-radius:8px;padding:10px 12px;background:var(--surface-sunk);color:var(--ink);
+}
+.quick-capture textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
+.quick-capture-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:10px;}
+.quick-capture-hint{font-size:11.5px;color:var(--ink-faint);}
+
+/* ---------- Buttons ---------- */
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent-ink);}
+.btn-secondary{background:var(--surface-sunk);color:var(--ink);border:1px solid var(--line-strong);}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent-ink);}
+.btn-danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent;}
+.btn-danger:hover{border-color:var(--danger);}
+.btn-text{background:none;border:none;color:var(--ink-dim);font-size:13px;padding:6px 8px;}
+.btn-text:hover{color:var(--accent-ink);}
+.btn[disabled]{opacity:0.5;cursor:not-allowed;}
+
+/* ---------- Module view ---------- */
+.module-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:10px;flex-wrap:wrap;}
+.module-toolbar-actions{display:flex;gap:8px;}
+
+table.record-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+table.record-table th{
+  text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-faint);
+  padding:10px 12px;background:var(--surface-sunk);border-bottom:1px solid var(--line);
+}
+table.record-table td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:top;}
+table.record-table tr:last-child td{border-bottom:none;}
+table.record-table tr:hover{background:var(--surface-sunk);}
+table.record-table td.actions{white-space:nowrap;width:1%;}
+.note-excerpt{color:var(--ink-dim);font-size:12px;}
+
+.record-cards{display:flex;flex-direction:column;gap:10px;}
+.record-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;}
+.record-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.record-card-title{font-weight:600;font-size:14px;}
+.record-card-meta{font-size:11.5px;color:var(--ink-faint);margin-top:2px;}
+.record-card-body{font-size:13.5px;color:var(--ink-dim);margin-top:8px;white-space:pre-wrap;}
+.record-card-actions{display:flex;gap:6px;flex-shrink:0;}
+
+.checklist-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);}
+.checklist-row:last-child{border-bottom:none;}
+.checklist-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);}
+.checklist-row .cl-title{flex:1;font-size:13.5px;}
+.checklist-row.done .cl-title{color:var(--ink-faint);text-decoration:line-through;}
+.tag-chip{
+  font-family:var(--font-mono);font-size:10.5px;background:var(--surface-sunk);color:var(--ink-dim);
+  padding:2px 8px;border-radius:20px;flex-shrink:0;
+}
+
+.empty-state{
+  text-align:center;padding:50px 20px;color:var(--ink-faint);
+  border:1px dashed var(--line-strong);border-radius:var(--radius);
+}
+.empty-state p{margin:0 0 12px;}
+
+/* ---------- Modal ---------- */
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(43,42,39,0.35);
+  display:flex;align-items:flex-start;justify-content:center;padding:6vh 20px;z-index:50;overflow-y:auto;
+}
+.modal{
+  background:var(--surface);border-radius:14px;max-width:560px;width:100%;
+  box-shadow:0 20px 50px rgba(0,0,0,0.18);
+}
+.modal-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+.modal-head h2{font-size:16px;}
+
+.manual-overlay{
+  display:none;position:fixed;inset:0;background:rgba(43,42,39,0.45);
+  align-items:center;justify-content:center;padding:4vh 20px;z-index:60;
+}
+.manual-overlay.open{display:flex;}
+.manual-overlay-box{
+  background:var(--panel);border-radius:14px;width:100%;max-width:960px;height:92vh;
+  display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.25);overflow:hidden;
+}
+.manual-overlay-head{
+  padding:14px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;
+  font-weight:600;flex-shrink:0;
+}
+.manual-overlay-box iframe{flex:1;width:100%;border:none;}
+.modal-close{background:none;border:none;font-size:18px;color:var(--ink-faint);line-height:1;}
+.modal-close:hover{color:var(--ink);}
+.modal-body{padding:20px 22px;max-height:64vh;overflow-y:auto;}
+.modal-foot{padding:16px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;}
+
+.field-group{margin-bottom:14px;}
+.field-label{font-size:12px;font-weight:600;color:var(--ink-dim);display:block;margin-bottom:5px;}
+.field-input, .field-group input[type=text], .field-group input[type=date], .field-group select, .field-group textarea{
+  width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;
+  background:var(--surface);color:var(--ink);
+}
+.field-group textarea{min-height:80px;resize:vertical;}
+.field-input:focus, .field-group input:focus, .field-group select:focus, .field-group textarea:focus{
+  outline:2px solid var(--accent-soft);border-color:var(--accent);
+}
+.field-hint{font-size:11.5px;color:var(--ink-faint);margin-top:4px;}
+
+.tpl-group-label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-faint);margin:16px 0 8px;}
+.tpl-group-label:first-child{margin-top:0;}
+.tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.tpl-card{
+  text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:11px 13px;display:flex;flex-direction:column;gap:2px;
+}
+.tpl-card:hover{border-color:var(--accent);background:var(--accent-soft);}
+.tpl-card .tpl-name{font-weight:600;font-size:13.5px;}
+.tpl-card .tpl-shape{font-size:11px;color:var(--ink-faint);}
+.tpl-custom-btn{
+  width:100%;text-align:left;background:var(--surface-sunk);border:1px dashed var(--line-strong);border-radius:10px;
+  padding:12px 14px;font-weight:600;font-size:13.5px;color:var(--ink);
+}
+.tpl-custom-btn:hover{border-color:var(--accent);color:var(--accent-ink);}
+
+.schema-field-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;background:var(--surface-sunk);padding:8px;border-radius:8px;}
+.schema-field-row input, .schema-field-row select{flex:1;min-width:0;}
+.schema-field-row .rm-field{flex:0 0 auto;background:none;border:none;color:var(--ink-faint);font-size:16px;padding:2px 6px;}
+.schema-field-row .rm-field:hover{color:var(--danger);}
+.add-field-btn{margin-top:4px;}
+
+.confirm-msg{font-size:13.5px;line-height:1.55;margin-bottom:6px;}
+.confirm-msg strong{color:var(--ink);}
+.error-box{background:var(--danger-soft);color:var(--danger);border-radius:8px;padding:10px 12px;font-size:13px;margin-top:10px;}
+
+.shape-note{
+  font-size:12px;color:var(--ink-faint);background:var(--surface-sunk);border-radius:8px;padding:9px 11px;margin-top:14px;
+}
+
+.roadmap-note{
+  font-size:11.5px;color:var(--ink-faint);text-align:center;margin-top:26px;padding-top:14px;border-top:1px solid var(--line);
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-watercolor"></div>
+      <div class="brand-inner">
+        <div class="brand-mark">Note Goat</div>
+        <div class="brand-sub">local &amp; private</div>
+      </div>
+    </div>
+    <div class="nav-section">
+      <button class="nav-btn" id="homeNavBtn"><span class="dot"></span>Home</button>
+    </div>
+    <div class="nav-label">Modules</div>
+    <nav class="module-list" id="moduleList"></nav>
+    <div class="sidebar-footer">
+      <button class="btn-library" id="openLibraryBtn">+ Library</button>
+      <button class="btn-library" id="openManualBtn" style="margin-top:6px;">📖 Manual</button>
+      <button class="btn-library" id="openConnectionsBtn" style="margin-top:6px;">⚙ Settings</button>
+    </div>
+  </aside>
+
+  <main class="main" id="mainArea"></main>
+</div>
+
+<div id="modalRoot"></div>
+
+<div class="manual-overlay" id="manualOverlay">
+  <div class="manual-overlay-box">
+    <div class="manual-overlay-head">
+      <span>Note Goat — Manual</span>
+      <button class="modal-close" id="manualCloseBtn">✕</button>
+    </div>
+    <iframe id="manualFrame" title="Note Goat Manual"></iframe>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* =========================================================
+   Data model
+   ========================================================= */
+const STORE_KEY = 'tc_state_v1';
+
+const FIELD_TYPES = {
+  text:      { label: 'Short text' },
+  longtext:  { label: 'Long text' },
+  date:      { label: 'Date' },
+  time:      { label: 'Time' },
+  number:    { label: 'Number' },
+  select:    { label: 'Choice list' },
+  checkbox:  { label: 'Checkbox' },
+  'link-one':  { label: 'Link — one record', isLink: true, multi: false },
+  'link-many': { label: 'Link — many records', isLink: true, multi: true },
+};
+
+const SHAPES = {
+  table:     { label: 'Repeating rows', hint: 'A table of similar records — e.g. Medications.' },
+  notes:     { label: 'Freeform notes', hint: 'Long-form entries. No custom fields needed — the built-in notes field is the content.' },
+  checklist: { label: 'Checklist', hint: 'Simple done / not-done items.' },
+  event:     { label: 'Dated / scheduled', hint: 'Things with a date — e.g. Appointments. Include one Date field.' },
+  files:     { label: 'File / photo', hint: 'One uploaded file or photo per record — e.g. a scanned insurance card. Stored on this device (not Drive), and travels with your Backup export.' },
+};
+
+/* Per-shape sync-target compatibility. 'ok' offers the target with no
+   warning; 'warn' offers it but discloses the degradation before syncing;
+   'refuse' doesn't offer it at all — a combination that would silently
+   lose or corrupt the data's meaning. */
+const SYNC_RULES = {
+  table:     { sheets:'ok',    docx:'warn',   calendar:'refuse' },
+  notes:     { sheets:'warn',  docx:'ok',     calendar:'refuse' },
+  checklist: { sheets:'warn',  docx:'refuse', calendar:'refuse' },
+  event:     { sheets:'warn',  docx:'refuse', calendar:'ok' },
+  files:     { sheets:'refuse',docx:'refuse', calendar:'refuse' },
+};
+const SYNC_WARN_MESSAGES = {
+  'table|docx':     'This will flatten each record into a plain paragraph in the document — table structure won’t carry over. Sync anyway?',
+  'notes|sheets':    'This will put one note per row in a single cell — you’ll lose the longer, readable layout. Sync anyway?',
+  'checklist|sheets':'This will flatten checked/unchecked state into plain text columns. Sync anyway?',
+  'event|sheets':    'This will sync as a flat log of appointments, not a live calendar. Sync anyway?',
+};
+const SYNC_TARGET_LABELS = { sheets:'Google Sheets', docx:'Google Docs', calendar:'Google Calendar' };
+
+/* Calendar reminder defaults, in minutes before the event start. An
+   all-day event's "start" is midnight, so 900 lands the popup at 9am the
+   day before; a timed event's start is the actual time, so 24h before
+   reads naturally instead. */
+const CALENDAR_REMINDER_MINUTES_ALLDAY = 900;
+const CALENDAR_REMINDER_MINUTES_TIMED = 1440;
+
+function uid(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+// Templates shown in the Library. `role` (optional) wires a template's
+// instances into the home page cards generically — any module created
+// from a role-carrying template counts toward that card, not just the
+// first one.
+const STARTER_TEMPLATES = [
+  { group:'Starters', name:'Checklist', shape:'checklist', fields:[ {id:'title',label:'Item',type:'text'} ] },
+  { group:'Starters', name:'Notes', shape:'notes', fields:[] , role:null},
+  { group:'Starters', name:'Next Steps', shape:'checklist', role:'next-steps',
+    fields:[ {id:'title',label:'Task',type:'text'}, {id:'group',label:'Group tag',type:'text'} ] },
+  { group:'Starters', name:'Unanswered Questions', shape:'checklist', role:'unanswered',
+    fields:[ {id:'question',label:'Question',type:'text'}, {id:'askedOf',label:'Asked of',type:'text'},
+             {id:'status',label:'Status',type:'select',options:['Open','Resolved']} ] },
+  { group:'Starters', name:'Files & Photos', shape:'files', fields:[ {id:'title',label:'Title',type:'text'} ] },
+];
+const MEDICAL_TEMPLATES = [
+  { group:'Medical', name:'Doctors', shape:'table',
+    fields:[ {id:'name',label:'Name',type:'text'}, {id:'specialty',label:'Specialty / Title',type:'text'},
+             {id:'phone',label:'Phone',type:'text'}, {id:'address',label:'Address',type:'text'} ] },
+  { group:'Medical', name:'Appointments', shape:'event',
+    fields:[ {id:'title',label:'Reason',type:'text'}, {id:'doctor',label:'Doctor',type:'text'},
+             {id:'date',label:'Date',type:'date'}, {id:'time',label:'Time',type:'time'} ] },
+  { group:'Medical', name:'Referrals', shape:'table',
+    fields:[ {id:'toDoctor',label:'Referred to',type:'text'}, {id:'fromDoctor',label:'Referred by',type:'text'},
+             {id:'reason',label:'Reason',type:'text'}, {id:'status',label:'Status',type:'select',options:['Pending','Scheduled','Completed']} ] },
+  { group:'Medical', name:'Medications', shape:'table',
+    fields:[ {id:'name',label:'Medication',type:'text'}, {id:'dosage',label:'Dosage',type:'text'},
+             {id:'prescribedBy',label:'Prescribed by',type:'text'}, {id:'startDate',label:'Start date',type:'date'} ] },
+  { group:'Medical', name:'Notes to Bring', shape:'checklist',
+    fields:[ {id:'item',label:'Item',type:'text'}, {id:'forAppointment',label:'For appointment',type:'text'} ] },
+];
+const ALL_TEMPLATES = STARTER_TEMPLATES.concat(MEDICAL_TEMPLATES);
+
+function seedState(){
+  const s = { modules: [], records: {}, view: {type:'home'},
+    settings: { anthropicKey:'', googleClientId:'', googleApiKey:'', spreadsheetId:'',
+      exportSchedule:'manual', lastExportedAt:null } };
+  const seedFrom = (name, tplName) => {
+    const tpl = STARTER_TEMPLATES.find(t => t.name === tplName);
+    const mod = instantiateModule(s, tpl, name);
+    return mod;
+  };
+  seedFrom('Next Steps', 'Next Steps');
+  seedFrom('Unanswered Questions', 'Unanswered Questions');
+  seedFrom('Personal Notes', 'Notes');
+  return s;
+}
+
+function instantiateModule(s, tpl, name){
+  const mod = {
+    id: uid('m'),
+    name: name,
+    shape: tpl.shape,
+    role: tpl.role || null,
+    fields: JSON.parse(JSON.stringify(tpl.fields)),
+    createdAt: Date.now(),
+  };
+  s.modules.push(mod);
+  s.records[mod.id] = [];
+  return mod;
+}
+
+let state = loadState();
+function loadState(){
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      const defaults = { anthropicKey:'', googleClientId:'', googleApiKey:'', spreadsheetId:'', exportSchedule:'manual', lastExportedAt:null };
+      s.settings = Object.assign({}, defaults, s.settings || {});
+      return s;
+    }
+  } catch(e){ console.warn('Could not read saved data', e); }
+  return seedState();
+}
+function saveState(){
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+  catch(e){ console.warn('Could not save data', e); }
+}
+
+/* ---------- File storage (IndexedDB) ----------
+   File/photo bytes never go through localStorage — its quota is a few MB,
+   fine for text and short tables, not for photos (same reasoning PM's own
+   design doc gives for staying Sheets-links-only). IndexedDB has real
+   room. Only `state` (module/record metadata, including which IDB key a
+   record's attachment lives under) persists in localStorage; the bytes
+   themselves live here, and travel separately through Backup export as
+   base64, not through localStorage at all. */
+const IDB_NAME = 'tc_files_v1';
+const IDB_STORE = 'blobs';
+let idbOpenPromise = null;
+function openIdb(){
+  if (idbOpenPromise) return idbOpenPromise;
+  idbOpenPromise = new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)){ reject(new Error('This browser doesn\'t support local file storage.')); return; }
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE, { keyPath: 'id' }); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return idbOpenPromise;
+}
+async function idbPutBlob(id, blob, name, mimeType){
+  const db = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put({ id, blob, name, mimeType });
+    tx.oncomplete = () => resolve(id);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGetBlob(id){
+  const db = await openIdb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbDeleteBlob(id){
+  const db = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function blobToBase64(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+function base64ToBlob(base64, mimeType){
+  const bytes = atob(base64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mimeType });
+}
+function humanFileSize(bytes){
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return Math.round(bytes/1024) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function getModule(id){ return state.modules.find(m => m.id === id); }
+function moduleRecords(id){ return state.records[id] || []; }
+
+/* Primary display field for a record: first text-type field, else first field, else null. */
+function primaryField(mod){
+  return mod.fields.find(f => f.type === 'text') || mod.fields[0] || null;
+}
+function recordTitle(mod, rec){
+  const pf = primaryField(mod);
+  if (pf && rec.fields[pf.id]) return String(rec.fields[pf.id]);
+  if (rec.notes) return rec.notes.slice(0, 40) + (rec.notes.length > 40 ? '…' : '');
+  return '(untitled)';
+}
+function dateField(mod){ return mod.fields.find(f => f.type === 'date') || null; }
+function timeField(mod){ return mod.fields.find(f => f.type === 'time') || null; }
+
+/* ---------- Links & backlinks ----------
+   A link field's value is a record id (link-one) or array of record ids
+   (link-many), always chosen manually by the person — never inferred.
+   Backlinks are computed on demand by scanning every module's records for
+   a link field pointing at the record in question, rather than kept as a
+   separately-maintained reverse index — same end result (a record can show
+   what points at it), simpler to keep correct at this scale. */
+function findRecordById(moduleId, recId){
+  return moduleRecords(moduleId).find(r => r.id === recId) || null;
+}
+function linkFieldValueIds(f, rec){
+  const v = rec.fields[f.id];
+  if (f.type === 'link-many') return Array.isArray(v) ? v : [];
+  return v ? [v] : [];
+}
+function getBacklinks(targetMod, targetRec){
+  const out = [];
+  state.modules.forEach(mod => {
+    mod.fields.filter(f => f.type === 'link-one' || f.type === 'link-many').forEach(f => {
+      if (f.targetModuleId !== targetMod.id) return;
+      moduleRecords(mod.id).forEach(rec => {
+        if (linkFieldValueIds(f, rec).includes(targetRec.id)) out.push({ mod, rec, field: f });
+      });
+    });
+  });
+  return out;
+}
+function backlinksForModule(mod){
+  // Every backlink pointing at any record currently in this module — used
+  // for the module-delete warning.
+  let count = 0;
+  moduleRecords(mod.id).forEach(rec => { count += getBacklinks(mod, rec).length; });
+  return count;
+}
+function linkFieldDisplay(f, rec){
+  const targetMod = getModule(f.targetModuleId);
+  if (!targetMod) return '—';
+  const ids = linkFieldValueIds(f, rec);
+  if (!ids.length) return '—';
+  const titles = ids.map(id => {
+    const r = findRecordById(targetMod.id, id);
+    return r ? recordTitle(targetMod, r) : '(linked record no longer exists)';
+  });
+  return titles.join(', ');
+}
+
+/* =========================================================
+   Rendering
+   ========================================================= */
+const mainArea = document.getElementById('mainArea');
+const moduleListEl = document.getElementById('moduleList');
+const modalRoot = document.getElementById('modalRoot');
+
+function render(){
+  saveState();
+  renderSidebar();
+  if (state.view.type === 'home') renderHome();
+  else if (state.view.type === 'module') renderModule(state.view.moduleId);
+}
+
+function renderSidebar(){
+  const homeBtn = document.getElementById('homeNavBtn');
+  homeBtn.classList.toggle('active', state.view.type === 'home');
+
+  moduleListEl.innerHTML = '';
+  state.modules.forEach(mod => {
+    const row = document.createElement('div');
+    row.className = 'module-row' + (state.view.type === 'module' && state.view.moduleId === mod.id ? ' active' : '');
+    const btn = document.createElement('button');
+    btn.className = 'nav-btn';
+    btn.innerHTML = '<span class="dot" style="background:' + colorForKey(mod.name) + '"></span>' + escapeHtml(mod.name);
+    btn.onclick = () => { state.view = {type:'module', moduleId: mod.id}; render(); };
+    const gear = document.createElement('button');
+    gear.className = 'gear'; gear.title = 'Edit module'; gear.textContent = '⚙';
+    gear.onclick = (e) => { e.stopPropagation(); openSchemaModal(mod); };
+    row.appendChild(btn); row.appendChild(gear);
+    moduleListEl.appendChild(row);
+  });
+}
+
+homeNavBtnListener();
+function homeNavBtnListener(){
+  document.getElementById('homeNavBtn').onclick = () => { state.view = {type:'home'}; render(); };
+  document.getElementById('openLibraryBtn').onclick = () => openLibraryModal();
+  document.getElementById('openConnectionsBtn').onclick = () => openConnectionsModal();
+}
+
+/* ---------- Home ---------- */
+let cardOpenState = { capture:true, coming:false, next:false, unanswered:false };
+
+function renderHome(){
+  mainArea.innerHTML = '';
+  const title = el('div', 'page-title', 'Home');
+  const sub = el('div', 'page-sub', 'What’s pending, at a glance.');
+  mainArea.appendChild(title); mainArea.appendChild(sub);
+
+  const cards = el('div', 'cards');
+  cards.appendChild(renderQuickCaptureCard());
+  cards.appendChild(renderComingUpCard());
+  cards.appendChild(renderNextStepsCard());
+  cards.appendChild(renderUnansweredCard());
+  mainArea.appendChild(cards);
+
+  const roadmap = el('div', 'roadmap-note',
+    'Add your Anthropic and Google keys under Settings to light up AI capture, AI-assisted module setup, and Sheets/Docs/Calendar sync. Click Manual for a full walkthrough of every feature.');
+  mainArea.appendChild(roadmap);
+}
+
+function personalNotesModule(){
+  return state.modules.find(m => m.role === 'personal-notes') || null;
+}
+function findFirstNotesModule(){
+  // Fallback: any 'notes' shape module, in case the role tag was lost.
+  return state.modules.find(m => m.role === 'personal-notes') || state.modules.find(m => m.shape === 'notes');
+}
+
+function renderQuickCaptureCard(){
+  const card = el('div', 'card open');
+  const body = el('div', 'quick-capture');
+  const label = el('div', 'card-title', 'Quick capture');
+  const hint = el('div', 'quick-capture-hint', 'Jot something down, or attach a photo of messy notes and let AI turn it into one clean, organized note — review it before it saves.');
+  const ta = document.createElement('textarea');
+  ta.placeholder = 'Type or paste a quick note…';
+  body.appendChild(label); body.appendChild(hint); body.appendChild(ta);
+
+  const photoRow = el('div', ''); photoRow.style.marginTop = '8px'; photoRow.style.display = 'flex'; photoRow.style.alignItems = 'center'; photoRow.style.gap = '10px';
+  const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = 'image/*'; fileInput.style.display = 'none';
+  const attachBtn = buttonEl('📷 Attach photo', 'btn-secondary', () => fileInput.click());
+  const thumb = document.createElement('img'); thumb.style.height = '32px'; thumb.style.borderRadius = '6px'; thumb.style.display = 'none';
+  let photoData = null; // {base64, mediaType}
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      photoData = { base64: dataUrl.split(',')[1], mediaType: file.type };
+      thumb.src = dataUrl; thumb.style.display = 'inline-block';
+    };
+    reader.readAsDataURL(file);
+  };
+  photoRow.appendChild(fileInput); photoRow.appendChild(attachBtn); photoRow.appendChild(thumb);
+  body.appendChild(photoRow);
+
+  const errBox = el('div', ''); body.appendChild(errBox);
+
+  const row = el('div', 'quick-capture-row');
+  const aiBtn = buttonEl('✨ Clean up with AI', 'btn-secondary', async () => {
+    if (!state.settings.anthropicKey){
+      errBox.innerHTML = ''; errBox.appendChild(el('div', 'error-box', 'No Anthropic API key set yet — add one under Connections first.'));
+      return;
+    }
+    if (!ta.value.trim() && !photoData){
+      alert('Type something or attach a photo first.');
+      return;
+    }
+    const origText = aiBtn.textContent; aiBtn.disabled = true; aiBtn.textContent = 'Reading…'; errBox.innerHTML = '';
+    try {
+      const cleaned = await cleanUpCapture(ta.value.trim(), photoData);
+      ta.value = cleaned; // shown for review — not saved yet
+    } catch(err){
+      const msg = err.message === 'NO_KEY' ? 'No Anthropic API key set yet — add one under Connections first.'
+        : 'Couldn\'t clean this up (' + err.message + '). Your original text is untouched — you can still save it as-is.';
+      errBox.appendChild(el('div', 'error-box', msg));
+    } finally {
+      aiBtn.disabled = false; aiBtn.textContent = origText;
+    }
+  });
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn btn-primary'; saveBtn.textContent = 'Save note';
+  saveBtn.onclick = () => {
+    const val = ta.value.trim();
+    if (!val) return;
+    const mod = findFirstNotesModule();
+    if (!mod){ alert('Add a Notes module from the Library first.'); return; }
+    state.records[mod.id].push({ id: uid('r'), fields:{}, notes: val, createdAt: Date.now(), updatedAt: Date.now() });
+    ta.value = ''; photoData = null; thumb.style.display = 'none'; fileInput.value = '';
+    render();
+  };
+  row.appendChild(aiBtn);
+  row.appendChild(saveBtn);
+  body.appendChild(row);
+  card.appendChild(body);
+  return card;
+}
+
+async function cleanUpCapture(text, photoData){
+  const system = [
+    'You clean up someone\'s messy captured notes (typed shorthand, or notes photographed off paper) into one clean, organized, legible note.',
+    'Reorganize and clarify — fix obvious structure, group related points, spell out clear abbreviations — but do not invent facts, dates, names, or details that aren\'t actually there or clearly implied.',
+    'If part of the photo or text is genuinely illegible or unclear, say so briefly in the note rather than guessing or silently leaving it out.',
+    'Respond with only the cleaned-up note itself — no preamble, no "Here is your cleaned up note:", nothing else.',
+  ].join('\n');
+  const content = [];
+  content.push({ type: 'text', text: text ? ('Raw notes:\n' + text) : 'Read the attached photo of handwritten/typed notes and clean them up.' });
+  if (photoData) content.push({ type: 'image', source: { type: 'base64', media_type: photoData.mediaType, data: photoData.base64 } });
+  return (await callClaude({ system, userContent: content, maxTokens: 800 })).trim();
+}
+
+function collapsibleCard(key, title, countText, previewText, bodyRenderer){
+  const isOpen = cardOpenState[key];
+  const card = el('div', 'card' + (isOpen ? ' open' : ''));
+  const head = el('div', 'card-head');
+  const left = el('div', 'card-head-left');
+  left.appendChild(el('div', 'card-title', title));
+  left.appendChild(el('div', 'card-preview', previewText));
+  head.appendChild(left);
+  const right = el('div', '');
+  right.style.display='flex'; right.style.alignItems='center'; right.style.gap='10px';
+  right.appendChild(el('div', 'card-count', countText));
+  right.appendChild(el('div', 'card-chevron', '›'));
+  head.appendChild(right);
+  head.onclick = () => { cardOpenState[key] = !cardOpenState[key]; render(); };
+  card.appendChild(head);
+  const body = el('div', 'card-body');
+  bodyRenderer(body);
+  card.appendChild(body);
+  return card;
+}
+
+function renderComingUpCard(){
+  const items = [];
+  state.modules.filter(m => m.shape === 'event').forEach(mod => {
+    const df = dateField(mod);
+    if (!df) return;
+    moduleRecords(mod.id).forEach(rec => {
+      const raw = rec.fields[df.id];
+      if (!raw) return;
+      items.push({ mod, rec, date: raw });
+    });
+  });
+  const today = new Date().toISOString().slice(0,10);
+  const upcoming = items.filter(i => i.date >= today).sort((a,b) => a.date < b.date ? -1 : 1);
+  const soonest = upcoming[0];
+  const preview = soonest ? ('Next: ' + recordTitle(soonest.mod, soonest.rec) + ', ' + formatDate(soonest.date) +
+    (upcoming.length > 1 ? ' — ' + (upcoming.length - 1) + ' more' : '')) : 'Nothing scheduled';
+  return collapsibleCard('coming', 'Coming up', String(upcoming.length), preview, (body) => {
+    if (!upcoming.length){ body.appendChild(el('div','empty','Nothing scheduled yet.')); return; }
+    upcoming.forEach(i => body.appendChild(itemRow(i.mod, i.rec, formatDate(i.date))));
+  });
+}
+
+function renderNextStepsCard(){
+  const rows = [];
+  state.modules.filter(m => m.role === 'next-steps').forEach(mod => {
+    moduleRecords(mod.id).forEach(rec => { if (!rec.fields.done) rows.push({mod, rec}); });
+  });
+  const preview = rows.length ? recordTitle(rows[0].mod, rows[0].rec) + (rows.length > 1 ? ' — ' + (rows.length-1) + ' more' : '') : 'Nothing pending';
+  return collapsibleCard('next', 'Next steps', String(rows.length), preview, (body) => {
+    if (!rows.length){ body.appendChild(el('div','empty','Nothing pending.')); return; }
+    rows.forEach(({mod, rec}) => {
+      const row = el('div', 'checklist-row');
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!rec.fields.done;
+      cb.onchange = () => { rec.fields.done = cb.checked; rec.updatedAt = Date.now(); render(); };
+      row.appendChild(cb);
+      const dot = el('span', 'type-dot', '');
+      dot.style.background = colorForKey(rec.fields.group || mod.name);
+      dot.style.display = 'inline-block';
+      row.appendChild(dot);
+      const titleSpan = el('span', 'cl-title', recordTitle(mod, rec));
+      titleSpan.style.cursor='pointer';
+      titleSpan.onclick = () => openRecordModal(mod, rec);
+      row.appendChild(titleSpan);
+      if (rec.fields.group) row.appendChild(el('span', 'tag-chip', rec.fields.group));
+      body.appendChild(row);
+    });
+  });
+}
+
+function renderUnansweredCard(){
+  const rows = [];
+  state.modules.filter(m => m.role === 'unanswered').forEach(mod => {
+    moduleRecords(mod.id).forEach(rec => { if ((rec.fields.status || 'Open') === 'Open') rows.push({mod, rec}); });
+  });
+  const preview = rows.length ? recordTitle(rows[0].mod, rows[0].rec) + (rows.length > 1 ? ' — ' + (rows.length-1) + ' more' : '') : 'Nothing open';
+  return collapsibleCard('unanswered', 'Unanswered questions', String(rows.length), preview, (body) => {
+    if (!rows.length){ body.appendChild(el('div','empty','Nothing open.')); return; }
+    rows.forEach(({mod, rec}) => body.appendChild(itemRow(mod, rec, rec.fields.askedOf ? ('Asked: ' + rec.fields.askedOf) : '')));
+  });
+}
+
+function itemRow(mod, rec, metaText){
+  const row = el('div', 'item-row');
+  row.appendChild(el('span', 'type-dot', ''));
+  const mainDiv = el('div', 'item-main');
+  const t = el('div', 'item-title', recordTitle(mod, rec));
+  t.onclick = () => openRecordModal(mod, rec);
+  mainDiv.appendChild(t);
+  mainDiv.appendChild(el('div', 'item-meta', mod.name + (metaText ? ' · ' + metaText : '')));
+  row.appendChild(mainDiv);
+  return row;
+}
+
+/* ---------- Module view ---------- */
+function renderModule(moduleId){
+  const mod = getModule(moduleId);
+  if (!mod){ state.view = {type:'home'}; renderHome(); return; }
+  mainArea.innerHTML = '';
+  mainArea.appendChild(el('div', 'page-title', mod.name));
+  mainArea.appendChild(el('div', 'page-sub', SHAPES[mod.shape].label));
+
+  const toolbar = el('div', 'module-toolbar');
+  const actions = el('div', 'module-toolbar-actions');
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn btn-primary'; addBtn.textContent = '+ Add record';
+  addBtn.onclick = () => openRecordModal(mod, null);
+  const editBtn = document.createElement('button');
+  editBtn.className = 'btn btn-secondary'; editBtn.textContent = 'Edit module';
+  editBtn.onclick = () => openSchemaModal(mod);
+  const syncBtn = document.createElement('button');
+  syncBtn.className = 'btn btn-secondary'; syncBtn.textContent = 'Sync';
+  syncBtn.onclick = () => openSyncModal(mod);
+  actions.appendChild(addBtn); actions.appendChild(editBtn); actions.appendChild(syncBtn);
+  toolbar.appendChild(el('div','',''));
+  toolbar.appendChild(actions);
+  mainArea.appendChild(toolbar);
+
+  const records = moduleRecords(mod.id);
+  if (!records.length){
+    const empty = el('div', 'empty-state');
+    empty.appendChild(el('p', '', 'No records yet.'));
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary'; btn.textContent = '+ Add the first one';
+    btn.onclick = () => openRecordModal(mod, null);
+    empty.appendChild(btn);
+    mainArea.appendChild(empty);
+    return;
+  }
+
+  if (mod.shape === 'checklist'){
+    mainArea.appendChild(renderChecklistView(mod, records));
+  } else if (mod.shape === 'notes'){
+    mainArea.appendChild(renderNotesView(mod, records));
+  } else if (mod.shape === 'event'){
+    mainArea.appendChild(renderTableView(mod, records, true));
+  } else if (mod.shape === 'files'){
+    mainArea.appendChild(renderFilesView(mod, records));
+  } else {
+    mainArea.appendChild(renderTableView(mod, records, false));
+  }
+}
+
+function renderFilesView(mod, records){
+  const grid = el('div', '');
+  grid.style.display = 'grid'; grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(150px, 1fr))'; grid.style.gap = '12px';
+  records.slice().sort((a,b) => b.updatedAt - a.updatedAt).forEach(rec => {
+    const card = el('div', 'record-card');
+    card.style.cursor = 'pointer'; card.style.textAlign = 'center';
+    card.onclick = () => openRecordModal(mod, rec);
+    const thumbWrap = el('div', ''); thumbWrap.style.height = '90px'; thumbWrap.style.display = 'flex';
+    thumbWrap.style.alignItems = 'center'; thumbWrap.style.justifyContent = 'center';
+    thumbWrap.style.background = 'var(--surface-sunk)'; thumbWrap.style.borderRadius = '8px'; thumbWrap.style.marginBottom = '8px';
+    thumbWrap.style.fontSize = '32px';
+    thumbWrap.textContent = rec.attachment && (rec.attachment.mimeType || '').startsWith('image/') ? '' : (rec.attachment ? '📎' : '—');
+    card.appendChild(thumbWrap);
+    card.appendChild(el('div', 'record-card-title', recordTitle(mod, rec)));
+    if (rec.attachment) card.appendChild(el('div', 'record-card-meta', rec.attachment.name));
+    grid.appendChild(card);
+    if (rec.attachment && (rec.attachment.mimeType || '').startsWith('image/')){
+      idbGetBlob(rec.attachment.idbKey).then(stored => {
+        if (!stored) return;
+        const img = document.createElement('img');
+        img.style.maxHeight = '100%'; img.style.maxWidth = '100%'; img.style.borderRadius = '6px'; img.style.objectFit = 'cover';
+        img.src = URL.createObjectURL(stored.blob);
+        thumbWrap.textContent = ''; thumbWrap.appendChild(img);
+      }).catch(() => {});
+    }
+  });
+  if (!records.length) return el('div', 'empty', 'No files yet.');
+  return grid;
+}
+
+function renderChecklistView(mod, records){
+  const wrap = el('div', 'record-cards');
+  const list = document.createElement('div');
+  list.style.background='var(--surface)'; list.style.border='1px solid var(--line)'; list.style.borderRadius='var(--radius)'; list.style.padding='6px 14px';
+  records.forEach(rec => {
+    const row = el('div', 'checklist-row' + (rec.fields.done ? ' done' : ''));
+    const hasDone = mod.fields.some(f => f.type === 'checkbox' && f.id === 'done');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!rec.fields.done;
+    cb.onchange = () => { rec.fields.done = cb.checked; rec.updatedAt = Date.now(); render(); };
+    row.appendChild(cb);
+    const t = el('span', 'cl-title', recordTitle(mod, rec)); t.style.cursor='pointer';
+    t.onclick = () => openRecordModal(mod, rec);
+    row.appendChild(t);
+    mod.fields.filter(f => f.id !== primaryField(mod)?.id && f.type !== 'checkbox').forEach(f => {
+      if (f.type === 'link-one' || f.type === 'link-many'){
+        if (linkFieldValueIds(f, rec).length) row.appendChild(el('span', 'tag-chip', linkFieldDisplay(f, rec)));
+      } else if (rec.fields[f.id]){
+        row.appendChild(el('span', 'tag-chip', rec.fields[f.id]));
+      }
+    });
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
+  return wrap;
+}
+
+function renderNotesView(mod, records){
+  const wrap = el('div', 'record-cards');
+  records.slice().sort((a,b) => b.updatedAt - a.updatedAt).forEach(rec => {
+    const card = el('div', 'record-card');
+    const head = el('div', 'record-card-head');
+    head.appendChild(el('div', 'record-card-meta', formatDateTime(rec.updatedAt)));
+    const actions = el('div', 'record-card-actions');
+    actions.appendChild(iconBtn('Edit', () => openRecordModal(mod, rec)));
+    head.appendChild(actions);
+    card.appendChild(head);
+    card.appendChild(el('div', 'record-card-body', rec.notes || '(empty)'));
+    wrap.appendChild(card);
+  });
+  return wrap;
+}
+
+function renderTableView(mod, records, isEvent){
+  let recs = records.slice();
+  if (isEvent){
+    const df = dateField(mod);
+    if (df) recs.sort((a,b) => (a.fields[df.id]||'') < (b.fields[df.id]||'') ? -1 : 1);
+  }
+  const table = document.createElement('table');
+  table.className = 'record-table';
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  mod.fields.forEach(f => { const th = document.createElement('th'); th.textContent = f.label; trh.appendChild(th); });
+  trh.appendChild(el('th','','Notes'));
+  trh.appendChild(el('th','',''));
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  recs.forEach(rec => {
+    const tr = document.createElement('tr');
+    mod.fields.forEach(f => {
+      const td = document.createElement('td');
+      if (f.type === 'link-one' || f.type === 'link-many'){
+        td.textContent = linkFieldDisplay(f, rec);
+      } else {
+        let v = rec.fields[f.id];
+        if (f.type === 'date' && v) v = formatDate(v);
+        td.textContent = v || '—';
+      }
+      tr.appendChild(td);
+    });
+    const noteTd = document.createElement('td');
+    noteTd.className = 'note-excerpt';
+    noteTd.textContent = rec.notes ? (rec.notes.slice(0,50) + (rec.notes.length > 50 ? '…' : '')) : '';
+    tr.appendChild(noteTd);
+    const actTd = document.createElement('td'); actTd.className = 'actions';
+    actTd.appendChild(iconBtn('Edit', () => openRecordModal(mod, rec)));
+    tr.appendChild(actTd);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  return table;
+}
+
+function iconBtn(label, onclick){
+  const b = document.createElement('button');
+  b.className = 'btn-text'; b.textContent = label; b.onclick = onclick;
+  return b;
+}
+
+/* =========================================================
+   Modals
+   ========================================================= */
+function openModal(titleText, bodyBuilder, footButtons){
+  modalRoot.innerHTML = '';
+  const backdrop = el('div', 'modal-backdrop');
+  const modal = el('div', 'modal');
+  const head = el('div', 'modal-head');
+  head.appendChild(el('h2', '', titleText));
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'modal-close'; closeBtn.textContent = '✕';
+  closeBtn.onclick = closeModal;
+  head.appendChild(closeBtn);
+  modal.appendChild(head);
+  const body = el('div', 'modal-body');
+  bodyBuilder(body);
+  modal.appendChild(body);
+  if (footButtons && footButtons.length){
+    const foot = el('div', 'modal-foot');
+    footButtons.forEach(b => foot.appendChild(b));
+    modal.appendChild(foot);
+  }
+  backdrop.appendChild(modal);
+  backdrop.onclick = (e) => { if (e.target === backdrop) closeModal(); };
+  modalRoot.appendChild(backdrop);
+}
+function closeModal(){ modalRoot.innerHTML = ''; }
+
+/* Lightweight styled confirm, returns a Promise<boolean>. Appended as an
+   overlay on top of modalRoot rather than replacing it, so confirming or
+   cancelling a nested "are you sure" step (e.g. inside the schema editor)
+   doesn't destroy the modal underneath it. */
+function confirmModal(message){
+  return new Promise(resolve => {
+    const overlay = el('div', 'modal-backdrop');
+    overlay.style.zIndex = '60';
+    const modal = el('div', 'modal');
+    modal.style.maxWidth = '420px';
+    const head = el('div', 'modal-head');
+    head.appendChild(el('h2', '', 'Are you sure?'));
+    modal.appendChild(head);
+    const body = el('div', 'modal-body');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'confirm-msg';
+    msgDiv.innerHTML = message;
+    body.appendChild(msgDiv);
+    modal.appendChild(body);
+    const foot = el('div', 'modal-foot');
+    foot.appendChild(buttonEl('Cancel', 'btn-secondary', () => { overlay.remove(); resolve(false); }));
+    foot.appendChild(buttonEl('Continue', 'btn-danger', () => { overlay.remove(); resolve(true); }));
+    modal.appendChild(foot);
+    overlay.appendChild(modal);
+    overlay.onclick = (e) => { if (e.target === overlay){ overlay.remove(); resolve(false); } };
+    modalRoot.appendChild(overlay);
+  });
+}
+function buttonEl(text, cls, onclick){
+  const b = document.createElement('button');
+  b.className = 'btn ' + cls; b.textContent = text; b.onclick = onclick;
+  return b;
+}
+
+/* ---------- Library modal ---------- */
+function openLibraryModal(){
+  openModal('Library', (body) => {
+    const groups = {};
+    ALL_TEMPLATES.forEach(t => { (groups[t.group] = groups[t.group] || []).push(t); });
+    Object.keys(groups).forEach(g => {
+      body.appendChild(el('div', 'tpl-group-label', g));
+      const grid = el('div', 'tpl-grid');
+      groups[g].forEach(tpl => {
+        const card = document.createElement('button');
+        card.className = 'tpl-card';
+        card.innerHTML = '<span class="tpl-name">'+escapeHtml(tpl.name)+'</span><span class="tpl-shape">'+SHAPES[tpl.shape].label+'</span>';
+        card.onclick = () => { closeModal(); promptModuleName(tpl); };
+        grid.appendChild(card);
+      });
+      body.appendChild(grid);
+    });
+    body.appendChild(el('div', 'tpl-group-label', 'Custom'));
+    const aiBtn = document.createElement('button');
+    aiBtn.className = 'tpl-custom-btn';
+    aiBtn.innerHTML = '✨ Describe what you need <span class="field-hint" style="display:block;font-weight:400;margin-top:2px;">AI proposes a module — fields, and links to what you already have — for you to review.</span>';
+    aiBtn.onclick = () => { closeModal(); openAIModuleDialog(); };
+    body.appendChild(aiBtn);
+    const advancedBtn = document.createElement('button');
+    advancedBtn.className = 'btn-text';
+    advancedBtn.style.marginTop = '8px';
+    advancedBtn.textContent = 'Advanced: build it yourself, field by field →';
+    advancedBtn.onclick = () => { closeModal(); openSchemaModal(null); };
+    body.appendChild(advancedBtn);
+  }, []);
+}
+
+function promptModuleName(tpl){
+  openModal('Name this module', (body) => {
+    body.appendChild(el('div', 'field-hint', 'Based on the "' + tpl.name + '" template — name it whatever makes sense to you.'));
+    const grp = el('div', 'field-group');
+    grp.appendChild(el('label', 'field-label', 'Module name'));
+    const input = document.createElement('input');
+    input.type = 'text'; input.value = tpl.name; input.className = 'field-input';
+    grp.appendChild(input);
+    body.appendChild(grp);
+    setTimeout(() => { input.focus(); input.select(); }, 30);
+    body.dataset._input = '';
+    body._nameInput = input;
+  }, [
+    buttonEl('Cancel', 'btn-secondary', closeModal),
+    buttonEl('Create', 'btn-primary', () => {
+      const input = document.querySelector('.modal-body')._nameInput;
+      const name = (input.value || tpl.name).trim() || tpl.name;
+      const mod = instantiateModule(state, tpl, name);
+      closeModal();
+      state.view = {type:'module', moduleId: mod.id};
+      render();
+    }),
+  ]);
+}
+
+/* ---------- AI-assisted module creation ----------
+   The AI's job here is the same as everywhere else in this app: propose,
+   never silently apply. It drafts a name/shape/fields/links from a
+   description, and hands off to the ordinary schema editor for review —
+   nothing is created until the person clicks Create there. */
+function openAIModuleDialog(){
+  openModal('Describe what you need', (body) => {
+    body.appendChild(el('div', 'field-hint',
+      'Tell the AI what you want to track — it\'ll propose a name, the right kind of fields, and links to your existing modules where that makes sense. You review and adjust everything before it\'s created.'));
+    const grp = el('div', 'field-group'); grp.style.marginTop = '12px';
+    grp.appendChild(el('label', 'field-label', 'What do you need?'));
+    const ta = document.createElement('textarea');
+    ta.placeholder = 'e.g. "Track my car\'s maintenance — oil changes, tire rotations, which shop did the work, and when the next one is due."';
+    ta.style.minHeight = '90px';
+    grp.appendChild(ta);
+    body.appendChild(grp);
+    const errBox = el('div', ''); errBox.id = 'aiDialogError';
+    body.appendChild(errBox);
+    body._getText = () => ta.value.trim();
+    body._errBox = errBox;
+  }, [
+    buttonEl('Cancel', 'btn-secondary', closeModal),
+    buttonEl('Ask AI', 'btn-primary', async (e) => {
+      const body = document.querySelector('.modal-body');
+      const desc = body._getText();
+      if (!desc){ alert('Describe what you need first.'); return; }
+      if (!state.settings.anthropicKey){
+        body._errBox.innerHTML = '';
+        body._errBox.appendChild(el('div', 'error-box', 'No Anthropic API key set yet — add one under Connections first.'));
+        return;
+      }
+      const btn = e.target; const origText = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Thinking…';
+      body._errBox.innerHTML = '';
+      try {
+        const draft = await proposeModuleFromAI(desc);
+        closeModal();
+        openSchemaModal(null, draft);
+      } catch(err){
+        btn.disabled = false; btn.textContent = origText;
+        const msg = err.message === 'NO_KEY' ? 'No Anthropic API key set yet — add one under Connections first.'
+          : 'Couldn\'t get a proposal (' + err.message + '). You can try again, or build the module manually instead.';
+        body._errBox.innerHTML = '';
+        body._errBox.appendChild(el('div', 'error-box', msg));
+      }
+    }),
+  ]);
+}
+
+const AI_FIELD_TYPE_NAMES = 'text (short text), longtext (long text), date, time, number, select (choice list), checkbox, link-one (links to one record in another module), link-many (links to several records in another module)';
+
+async function proposeModuleFromAI(description){
+  const moduleNames = state.modules.map(m => m.name);
+  const system = [
+    'You are helping someone design a new module (a record type) for Note Goat, a personal organizer app.',
+    'A module has a name, a "shape" (table = repeating rows of similar records; notes = freeform long-form entries with no custom fields; checklist = simple done/not-done items; event = things with a date; files = one uploaded file/photo per record, e.g. scanned documents), and a list of fields.',
+    'Available field types: ' + AI_FIELD_TYPE_NAMES + '.',
+    'Existing modules the person already has, that new fields can link to if it genuinely makes sense: ' + (moduleNames.length ? moduleNames.join(', ') : '(none yet)') + '.',
+    'Only propose a link-one/link-many field when it clearly matches one of those existing module names — otherwise just use a plain text field instead.',
+    'Keep the field list focused — only what the description actually asks for, not everything imaginable.',
+    '',
+    'Respond in exactly this format and nothing else:',
+    'NAME: <a short module name>',
+    'SHAPE: <table|notes|checklist|event>',
+    'FIELDS:',
+    '- <field label> | <type> | <for select: comma-separated options — for link-one/link-many: the exact existing module name it links to — otherwise blank>',
+    '(one line per field; if shape is notes, this section can be empty)',
+    'RATIONALE: <one sentence explaining the shape and field choices, written to the person, e.g. "A table works well since you\'ll have one row per..."> ',
+  ].join('\n');
+  const text = await callClaude({ system, userContent: description, maxTokens: 700 });
+  return parseAIModuleProposal(text);
+}
+
+function parseAIModuleProposal(text){
+  const lines = text.split('\n');
+  let name = '', shape = 'table', rationale = '';
+  const fields = [];
+  let inFields = false;
+  lines.forEach(line => {
+    const l = line.trim();
+    if (/^NAME:/i.test(l)) { name = l.replace(/^NAME:/i, '').trim(); inFields = false; }
+    else if (/^SHAPE:/i.test(l)) { const s = l.replace(/^SHAPE:/i, '').trim().toLowerCase(); if (SHAPES[s]) shape = s; inFields = false; }
+    else if (/^FIELDS:/i.test(l)) { inFields = true; }
+    else if (/^RATIONALE:/i.test(l)) { rationale = l.replace(/^RATIONALE:/i, '').trim(); inFields = false; }
+    else if (inFields && l.startsWith('-')) {
+      const parts = l.slice(1).split('|').map(p => p.trim());
+      const label = parts[0] || 'Field';
+      let type = (parts[1] || 'text').toLowerCase();
+      if (!FIELD_TYPES[type]) type = 'text';
+      const field = { id: uid('f'), label, type };
+      const extra = parts[2] || '';
+      if (type === 'select' && extra) field.options = extra.split(',').map(s => s.trim()).filter(Boolean);
+      if ((type === 'link-one' || type === 'link-many') && extra){
+        const targetMod = state.modules.find(m => m.name.toLowerCase() === extra.toLowerCase());
+        if (targetMod) field.targetModuleId = targetMod.id;
+        else field.type = 'text'; // named a module we don't actually have — degrade rather than create a dangling link
+      }
+      fields.push(field);
+    }
+  });
+  if (!name) throw new Error('couldn\'t make sense of the response');
+  return { name, shape, fields, rationale: rationale || 'Here\'s a proposed module based on what you described.' };
+}
+
+/* ---------- Schema (create / edit module) modal ----------
+   `prefill` (create mode only) seeds the form from an AI-proposed draft
+   {name, shape, fields, rationale} — still fully editable, nothing is
+   created until the person reviews it and clicks Create, same as picking
+   a Library template. */
+function openSchemaModal(mod, prefill){
+  const isEdit = !!mod;
+  let draftFields = isEdit ? JSON.parse(JSON.stringify(mod.fields)) : (prefill ? prefill.fields : []);
+  let draftShape = isEdit ? mod.shape : (prefill ? prefill.shape : 'table');
+
+  openModal(isEdit ? 'Edit module' : 'Build a module', (body) => {
+    if (prefill && prefill.rationale){
+      body.appendChild(el('div', 'shape-note', '✨ ' + prefill.rationale + ' Review and adjust anything below before creating it.'));
+    }
+    const nameGrp = el('div', 'field-group');
+    nameGrp.appendChild(el('label', 'field-label', 'Module name'));
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text'; nameInput.className = 'field-input';
+    nameInput.value = isEdit ? mod.name : (prefill ? prefill.name : '');
+    nameGrp.appendChild(nameInput);
+    body.appendChild(nameGrp);
+
+    const shapeGrp = el('div', 'field-group');
+    shapeGrp.appendChild(el('label', 'field-label', 'Shape'));
+    const shapeSelect = document.createElement('select');
+    Object.keys(SHAPES).forEach(k => {
+      const opt = document.createElement('option'); opt.value = k; opt.textContent = SHAPES[k].label;
+      if (k === draftShape) opt.selected = true;
+      shapeSelect.appendChild(opt);
+    });
+    if (isEdit) shapeSelect.disabled = true;
+    shapeGrp.appendChild(shapeSelect);
+    const shapeHint = el('div', 'field-hint', isEdit ? 'A module’s shape can’t be changed after it’s created — make a new module if you need a different shape.' : SHAPES[draftShape].hint);
+    shapeGrp.appendChild(shapeHint);
+    shapeSelect.onchange = () => { draftShape = shapeSelect.value; shapeHint.textContent = SHAPES[draftShape].hint; };
+    body.appendChild(shapeGrp);
+
+    const fieldsLabel = el('label', 'field-label', 'Fields');
+    body.appendChild(fieldsLabel);
+    const fieldsList = el('div', '');
+    body.appendChild(fieldsList);
+
+    function renderFieldsList(){
+      fieldsList.innerHTML = '';
+      draftFields.forEach((f, idx) => {
+        const wrapper = el('div', '');
+        const row = el('div', 'schema-field-row');
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text'; labelInput.value = f.label; labelInput.placeholder = 'Field label';
+        labelInput.oninput = () => { f.label = labelInput.value; };
+        row.appendChild(labelInput);
+        const typeSelect = document.createElement('select');
+        Object.keys(FIELD_TYPES).forEach(tk => {
+          const opt = document.createElement('option'); opt.value = tk; opt.textContent = FIELD_TYPES[tk].label;
+          if (tk === f.type) opt.selected = true;
+          typeSelect.appendChild(opt);
+        });
+        typeSelect.onchange = () => {
+          attemptFieldTypeChange(f, typeSelect.value, typeSelect);
+          renderFieldsList();
+        };
+        row.appendChild(typeSelect);
+        const rm = document.createElement('button');
+        rm.className = 'rm-field'; rm.textContent = '✕'; rm.title = 'Remove field';
+        rm.onclick = async () => { await attemptFieldRemoval(f, idx); };
+        row.appendChild(rm);
+        wrapper.appendChild(row);
+
+        if (FIELD_TYPES[f.type] && FIELD_TYPES[f.type].isLink){
+          const linkRow = el('div', 'schema-field-row');
+          linkRow.style.marginTop = '-4px';
+          const targetSelect = document.createElement('select');
+          const noneOpt = document.createElement('option');
+          noneOpt.value = ''; noneOpt.textContent = 'Links to… (choose a module)';
+          targetSelect.appendChild(noneOpt);
+          state.modules.forEach(m => {
+            const opt = document.createElement('option'); opt.value = m.id; opt.textContent = m.name;
+            if (f.targetModuleId === m.id) opt.selected = true;
+            targetSelect.appendChild(opt);
+          });
+          targetSelect.onchange = () => { f.targetModuleId = targetSelect.value || null; };
+          linkRow.appendChild(targetSelect);
+          wrapper.appendChild(linkRow);
+        }
+        fieldsList.appendChild(wrapper);
+      });
+    }
+
+    async function attemptFieldRemoval(f, idx){
+      const recs = isEdit ? moduleRecords(mod.id) : [];
+      const withData = recs.filter(r => r.fields[f.id] !== undefined && r.fields[f.id] !== '' && r.fields[f.id] !== false);
+      if (withData.length){
+        const ok = await confirmModal('<strong>' + withData.length + '</strong> record' + (withData.length===1?'':'s') +
+          ' currently ' + (withData.length===1?'has':'have') + ' data in "<strong>' + escapeHtml(f.label) +
+          '</strong>." Deleting this field removes that data permanently. Continue?');
+        if (!ok) return;
+      }
+      draftFields.splice(idx, 1);
+      renderFieldsList();
+    }
+
+    function attemptFieldTypeChange(f, newType, selectEl){
+      const recs = isEdit ? moduleRecords(mod.id) : [];
+      const badValues = [];
+      const wasLink = FIELD_TYPES[f.type] && FIELD_TYPES[f.type].isLink;
+      const willBeLink = FIELD_TYPES[newType] && FIELD_TYPES[newType].isLink;
+      if (newType === 'number' || newType === 'date' || newType === 'time'){
+        recs.forEach(r => {
+          const v = r.fields[f.id];
+          if (v === undefined || v === '' || v === null) return;
+          if (newType === 'number' && isNaN(Number(v))) badValues.push({r, v});
+          if (newType === 'date' && isNaN(Date.parse(v))) badValues.push({r, v});
+          if (newType === 'time' && !/^\d{2}:\d{2}$/.test(v)) badValues.push({r, v});
+        });
+      }
+      if (willBeLink && !wasLink){
+        recs.forEach(r => { if (r.fields[f.id] !== undefined && r.fields[f.id] !== '') badValues.push({r, v: r.fields[f.id]}); });
+      }
+      if (wasLink && !willBeLink){
+        recs.forEach(r => { if (linkFieldValueIds(f, r).length) badValues.push({r, v: '(a link)'}); });
+      }
+      if (badValues.length){
+        showFieldTypeError(f, newType, badValues, mod);
+        selectEl.value = f.type; // revert visually, edit refused
+        return;
+      }
+      f.type = newType;
+      if (willBeLink && !f.targetModuleId) f.targetModuleId = null;
+      if (newType === 'select' && !f.options) f.options = [];
+    }
+
+    function showFieldTypeError(f, newType, badValues, mod){
+      const box = el('div', 'error-box',
+        'Can’t change "' + escapeHtml(f.label) + '" to ' + FIELD_TYPES[newType].label.toLowerCase() + ' — ' +
+        badValues.length + ' record' + (badValues.length===1?'':'s') + ' ' + (badValues.length===1?'has':'have') +
+        ' a value that doesn’t fit (e.g. "' + escapeHtml(String(badValues[0].v)) + '"). Fix that data first, or leave the field as it is.');
+      fieldsList.appendChild(box);
+      setTimeout(() => box.remove(), 6000);
+    }
+
+    renderFieldsList();
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn btn-secondary add-field-btn';
+    addBtn.textContent = '+ Add field';
+    addBtn.onclick = () => {
+      draftFields.push({ id: uid('f'), label: 'New field', type: 'text' });
+      renderFieldsList();
+    };
+    body.appendChild(addBtn);
+    body.appendChild(el('div', 'field-hint', 'Every record also gets a built-in Notes field automatically — no need to add one.'));
+
+    body._nameInput = nameInput;
+    body._getDraft = () => ({ name: nameInput.value.trim(), shape: draftShape, fields: draftFields });
+  }, buildSchemaFooter(mod, isEdit));
+}
+
+function buildSchemaFooter(mod, isEdit){
+  const buttons = [];
+  if (isEdit){
+    buttons.push(buttonEl('Delete module', 'btn-danger', async () => {
+      const recs = moduleRecords(mod.id);
+      const inboundLinks = backlinksForModule(mod);
+      let msg;
+      if (recs.length && inboundLinks){
+        msg = 'This module has <strong>' + recs.length + '</strong> record' + (recs.length===1?'':'s') + ', and <strong>' + inboundLinks +
+          '</strong> record' + (inboundLinks===1?'':'s') + ' elsewhere link' + (inboundLinks===1?'s':'') + ' to something in it. ' +
+          'Deleting the module deletes all of it permanently and leaves those links broken. Continue?';
+      } else if (recs.length){
+        msg = 'This module has <strong>' + recs.length + '</strong> record' + (recs.length===1?'':'s') + '. Deleting the module deletes all of them permanently. Continue?';
+      } else {
+        msg = 'Delete this empty module?';
+      }
+      const ok = await confirmModal(msg);
+      if (!ok) return;
+      if (mod.shape === 'files'){
+        for (const r of recs) if (r.attachment) await idbDeleteBlob(r.attachment.idbKey).catch(() => {});
+      }
+      state.modules = state.modules.filter(m => m.id !== mod.id);
+      delete state.records[mod.id];
+      closeModal();
+      state.view = {type:'home'};
+      render();
+    }));
+  }
+  buttons.push(buttonEl('Cancel', 'btn-secondary', closeModal));
+  buttons.push(buttonEl(isEdit ? 'Save' : 'Create module', 'btn-primary', () => {
+    const draft = document.querySelector('.modal-body')._getDraft();
+    if (!draft.name){ alert('Give the module a name.'); return; }
+    if (isEdit){
+      mod.name = draft.name;
+      mod.fields = draft.fields;
+      closeModal(); render();
+    } else {
+      const newMod = { id: uid('m'), name: draft.name, shape: draft.shape, role: null, fields: draft.fields, createdAt: Date.now() };
+      state.modules.push(newMod);
+      state.records[newMod.id] = [];
+      closeModal();
+      state.view = {type:'module', moduleId: newMod.id};
+      render();
+    }
+  }));
+  return buttons;
+}
+
+/* ---------- Record modal ---------- */
+/* The file-upload field for a 'files'-shape record. Structural, like the
+   built-in Notes field — not a configurable schema field, every record of
+   this shape has exactly one. Nothing is written to IndexedDB until Save;
+   picking a file here just stages it in `draft`. */
+function buildAttachmentField(draft){
+  const grp = el('div', 'field-group');
+  grp.appendChild(el('label', 'field-label', 'File / photo'));
+  const box = el('div', '');
+  box.style.border = '1px solid var(--line-strong)'; box.style.borderRadius = '8px'; box.style.padding = '10px';
+
+  function renderBox(){
+    box.innerHTML = '';
+    const hasCurrent = draft.attachment && !draft.removeAttachment;
+    const hasPending = !!draft.pendingFile;
+    if (hasPending){
+      const row = el('div', ''); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.gap = '10px';
+      row.appendChild(el('div', '', '📎 ' + draft.pendingFile.name + ' (' + humanFileSize(draft.pendingFile.size) + ') — will be saved'));
+      box.appendChild(row);
+    } else if (hasCurrent){
+      const row = el('div', ''); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.gap = '10px';
+      const isImg = (draft.attachment.mimeType || '').startsWith('image/');
+      row.appendChild(el('div', '', (isImg ? '🖼️ ' : '📎 ') + draft.attachment.name + ' (' + humanFileSize(draft.attachment.size) + ')'));
+      const openBtn = buttonEl('Open', 'btn-text', async () => {
+        const rec2 = await idbGetBlob(draft.attachment.idbKey);
+        if (!rec2){ alert('Couldn\'t find this file locally — it may not have finished saving.'); return; }
+        const url = URL.createObjectURL(rec2.blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      });
+      row.appendChild(openBtn);
+      const rmBtn = buttonEl('Remove', 'btn-text', () => { draft.removeAttachment = true; renderBox(); });
+      row.appendChild(rmBtn);
+      box.appendChild(row);
+    } else {
+      box.appendChild(el('div', 'field-hint', 'No file attached yet.'));
+    }
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file'; fileInput.style.marginTop = '8px';
+    fileInput.onchange = () => {
+      const f = fileInput.files[0]; if (!f) return;
+      draft.pendingFile = f; draft.removeAttachment = false;
+      renderBox();
+    };
+    box.appendChild(fileInput);
+  }
+  renderBox();
+  grp.appendChild(box);
+  return grp;
+}
+
+function openRecordModal(mod, rec){
+  const isEdit = !!rec;
+  const draft = {
+    fields: isEdit ? Object.assign({}, rec.fields) : {},
+    notes: isEdit ? rec.notes : '',
+    attachment: isEdit ? rec.attachment : null, // existing attachment metadata, unchanged unless replaced/removed below
+    pendingFile: null,      // a newly chosen File, not yet written to IndexedDB
+    removeAttachment: false,
+  };
+
+  openModal(isEdit ? ('Edit — ' + mod.name) : ('Add to ' + mod.name), (body) => {
+    if (mod.shape === 'files'){
+      body.appendChild(buildAttachmentField(draft));
+    }
+    mod.fields.forEach(f => {
+      const grp = el('div', 'field-group');
+      grp.appendChild(el('label', 'field-label', f.label));
+      let input;
+      if (f.type === 'longtext'){
+        input = document.createElement('textarea');
+        input.value = draft.fields[f.id] || '';
+        input.oninput = () => draft.fields[f.id] = input.value;
+      } else if (f.type === 'select'){
+        input = document.createElement('select');
+        (f.options||[]).forEach(opt => {
+          const o = document.createElement('option'); o.value = opt; o.textContent = opt;
+          if (draft.fields[f.id] === opt) o.selected = true;
+          input.appendChild(o);
+        });
+        input.onchange = () => draft.fields[f.id] = input.value;
+      } else if (f.type === 'checkbox'){
+        input = document.createElement('input'); input.type = 'checkbox';
+        input.checked = !!draft.fields[f.id];
+        input.style.width = 'auto';
+        input.onchange = () => draft.fields[f.id] = input.checked;
+      } else if (f.type === 'date'){
+        input = document.createElement('input'); input.type = 'date';
+        input.value = draft.fields[f.id] || '';
+        input.oninput = () => draft.fields[f.id] = input.value;
+      } else if (f.type === 'time'){
+        input = document.createElement('input'); input.type = 'time';
+        input.value = draft.fields[f.id] || '';
+        input.oninput = () => draft.fields[f.id] = input.value;
+      } else if (f.type === 'number'){
+        input = document.createElement('input'); input.type = 'number';
+        input.value = draft.fields[f.id] || '';
+        input.oninput = () => draft.fields[f.id] = input.value;
+      } else if (f.type === 'link-one'){
+        const targetMod = getModule(f.targetModuleId);
+        input = document.createElement('select');
+        if (!targetMod){
+          input.disabled = true;
+          input.appendChild(el('option','','(no target module set — edit this field in the schema first)'));
+        } else {
+          input.appendChild(el('option','','— none —'));
+          moduleRecords(targetMod.id).forEach(r => {
+            const o = document.createElement('option'); o.value = r.id; o.textContent = recordTitle(targetMod, r);
+            if (draft.fields[f.id] === r.id) o.selected = true;
+            input.appendChild(o);
+          });
+          input.onchange = () => draft.fields[f.id] = input.value || null;
+        }
+      } else if (f.type === 'link-many'){
+        const targetMod = getModule(f.targetModuleId);
+        input = el('div', '');
+        input.style.border = '1px solid var(--line-strong)'; input.style.borderRadius = '8px';
+        input.style.padding = '8px 10px'; input.style.maxHeight = '140px'; input.style.overflowY = 'auto';
+        if (!targetMod || !moduleRecords(targetMod.id).length){
+          input.appendChild(el('div', 'field-hint', targetMod ? 'No records in "' + escapeHtml(targetMod.name) + '" yet to link to.' : '(no target module set — edit this field in the schema first)'));
+        } else {
+          const current = new Set(Array.isArray(draft.fields[f.id]) ? draft.fields[f.id] : []);
+          moduleRecords(targetMod.id).forEach(r => {
+            const rowLabel = document.createElement('label');
+            rowLabel.style.display = 'flex'; rowLabel.style.alignItems = 'center'; rowLabel.style.gap = '8px';
+            rowLabel.style.padding = '4px 0'; rowLabel.style.fontSize = '13.5px';
+            const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = current.has(r.id);
+            cb.onchange = () => {
+              if (cb.checked) current.add(r.id); else current.delete(r.id);
+              draft.fields[f.id] = Array.from(current);
+            };
+            rowLabel.appendChild(cb);
+            rowLabel.appendChild(document.createTextNode(recordTitle(targetMod, r)));
+            input.appendChild(rowLabel);
+          });
+        }
+      } else {
+        input = document.createElement('input'); input.type = 'text';
+        input.value = draft.fields[f.id] || '';
+        input.oninput = () => draft.fields[f.id] = input.value;
+      }
+      grp.appendChild(input);
+      body.appendChild(grp);
+    });
+
+    if (isEdit){
+      const backlinks = getBacklinks(mod, rec);
+      if (backlinks.length){
+        const blGrp = el('div', 'field-group');
+        blGrp.appendChild(el('label', 'field-label', 'Linked from'));
+        const box = el('div', '');
+        box.style.border = '1px solid var(--line)'; box.style.borderRadius = '8px'; box.style.padding = '4px 10px'; box.style.background = 'var(--surface-sunk)';
+        backlinks.forEach(({mod: bMod, rec: bRec, field: bField}) => {
+          const row = el('div', 'item-row');
+          row.style.borderBottom = '1px solid var(--line)';
+          const mainDiv = el('div', 'item-main');
+          const t = el('div', 'item-title', recordTitle(bMod, bRec));
+          t.onclick = () => { closeModal(); openRecordModal(bMod, bRec); };
+          mainDiv.appendChild(t);
+          mainDiv.appendChild(el('div', 'item-meta', bMod.name + ' · via "' + bField.label + '"'));
+          row.appendChild(mainDiv);
+          box.appendChild(row);
+        });
+        blGrp.appendChild(box);
+        body.appendChild(blGrp);
+      }
+    }
+
+    const notesGrp = el('div', 'field-group');
+    notesGrp.appendChild(el('label', 'field-label', 'Notes'));
+    const notesArea = document.createElement('textarea');
+    notesArea.value = draft.notes || '';
+    notesArea.placeholder = 'Anything else about this specific record.';
+    notesArea.oninput = () => draft.notes = notesArea.value;
+    notesGrp.appendChild(notesArea);
+    body.appendChild(notesGrp);
+  }, buildRecordFooter(mod, rec, draft));
+}
+
+function buildRecordFooter(mod, rec, draft){
+  const buttons = [];
+  if (rec){
+    buttons.push(buttonEl('Delete', 'btn-danger', async () => {
+      const backlinks = getBacklinks(mod, rec);
+      const msg = backlinks.length
+        ? '<strong>' + backlinks.length + '</strong> record' + (backlinks.length===1?'':'s') + ' link' + (backlinks.length===1?'s':'') +
+          ' to this one. Deleting it leaves those links pointing at something that no longer exists — they’ll show as broken, not be cleaned up automatically. Delete anyway?'
+        : 'Delete this record? This can’t be undone.';
+      const ok = await confirmModal(msg);
+      if (!ok) return;
+      if (rec.attachment) await idbDeleteBlob(rec.attachment.idbKey).catch(() => {});
+      state.records[mod.id] = moduleRecords(mod.id).filter(r => r.id !== rec.id);
+      closeModal(); render();
+    }));
+  }
+  buttons.push(buttonEl('Cancel', 'btn-secondary', closeModal));
+  const saveBtn = buttonEl(rec ? 'Save' : 'Add', 'btn-primary', async () => {
+    saveBtn.disabled = true;
+    try {
+      let attachment = draft.attachment;
+      if (draft.pendingFile){
+        // A new file replaces whatever was there before — clean up the old one.
+        if (attachment) await idbDeleteBlob(attachment.idbKey).catch(() => {});
+        const idbKey = uid('file');
+        await idbPutBlob(idbKey, draft.pendingFile, draft.pendingFile.name, draft.pendingFile.type);
+        attachment = { idbKey, name: draft.pendingFile.name, mimeType: draft.pendingFile.type, size: draft.pendingFile.size };
+      } else if (draft.removeAttachment && attachment){
+        await idbDeleteBlob(attachment.idbKey).catch(() => {});
+        attachment = null;
+      }
+      if (rec){
+        rec.fields = draft.fields; rec.notes = draft.notes; rec.attachment = attachment; rec.updatedAt = Date.now();
+      } else {
+        state.records[mod.id].push({ id: uid('r'), fields: draft.fields, notes: draft.notes, attachment, createdAt: Date.now(), updatedAt: Date.now() });
+      }
+      closeModal(); render();
+    } catch(err){
+      saveBtn.disabled = false;
+      alert('Couldn\'t save the file (' + err.message + '). Everything else is unsaved too — try again.');
+    }
+  });
+  buttons.push(saveBtn);
+  return buttons;
+}
+
+/* =========================================================
+   Connections — Anthropic (BYOK) + Google (BYO Cloud project)
+   Same pattern as the rest of the family: the person's own keys, stored
+   only in this browser's localStorage, nothing routed through a server of
+   ours. The Google connection itself never persists across a reload —
+   only the Client ID / API key do; signing in is a per-session action.
+   ========================================================= */
+let googleRt = { tokenClient: null, accessToken: null, connected: false, initPending: false };
+
+function openConnectionsModal(){
+  openModal('Settings', (body) => {
+    body.appendChild(el('div', 'tpl-group-label', 'Connections'));
+    body.appendChild(el('div', 'field-hint',
+      'Your keys are stored only in this browser, on this device, and used only for the direct calls this app makes to Anthropic\'s and Google\'s own APIs. Nothing routes through a server of ours.'));
+
+    const aGrp = el('div', 'field-group'); aGrp.style.marginTop='14px';
+    aGrp.appendChild(el('label', 'field-label', 'Anthropic API key — powers AI capture and AI-assisted module setup'));
+    const aInput = document.createElement('input'); aInput.type = 'password'; aInput.className = 'field-input';
+    aInput.value = state.settings.anthropicKey || ''; aInput.placeholder = 'sk-ant-…';
+    aInput.oninput = () => { state.settings.anthropicKey = aInput.value.trim(); saveState(); };
+    aGrp.appendChild(aInput);
+    body.appendChild(aGrp);
+
+    body.appendChild(el('div', 'tpl-group-label', 'Google — for Sheets / Docs / Calendar sync'));
+    body.appendChild(el('div', 'field-hint', 'Requires your own free Google Cloud project with the Sheets, Drive, Docs, and Calendar APIs enabled, and an OAuth Client ID + API key from it.'));
+
+    const cGrp = el('div', 'field-group');
+    cGrp.appendChild(el('label', 'field-label', 'OAuth Client ID'));
+    const cInput = document.createElement('input'); cInput.type = 'text'; cInput.className = 'field-input';
+    cInput.value = state.settings.googleClientId || ''; cInput.oninput = () => { state.settings.googleClientId = cInput.value.trim(); saveState(); };
+    cGrp.appendChild(cInput);
+    body.appendChild(cGrp);
+
+    const kGrp = el('div', 'field-group');
+    kGrp.appendChild(el('label', 'field-label', 'API key'));
+    const kInput = document.createElement('input'); kInput.type = 'password'; kInput.className = 'field-input';
+    kInput.value = state.settings.googleApiKey || ''; kInput.oninput = () => { state.settings.googleApiKey = kInput.value.trim(); saveState(); };
+    kGrp.appendChild(kInput);
+    body.appendChild(kGrp);
+
+    const statusRow = el('div', 'field-hint');
+    statusRow.id = 'googleStatusRow';
+    statusRow.textContent = googleRt.connected ? 'Google: connected for this session.' :
+      (state.settings.googleClientId ? 'Google: configured, not signed in yet.' : 'Google: not configured.');
+    body.appendChild(statusRow);
+
+    const connectBtn = buttonEl('Connect / Sign in to Google', 'btn-secondary', () => {
+      if (!state.settings.googleClientId || !state.settings.googleApiKey){ alert('Enter both the Client ID and API key first.'); return; }
+      statusRow.textContent = 'Connecting…';
+      tryInitGoogle(true,
+        () => { statusRow.textContent = 'Google: connected for this session.'; },
+        (msg) => { statusRow.textContent = 'Google: ' + msg; });
+    });
+    connectBtn.style.marginTop = '8px';
+    body.appendChild(connectBtn);
+
+    body.appendChild(el('div', 'tpl-group-label', 'Backup & transfer'));
+    body.appendChild(el('div', 'field-hint',
+      'A backup file has everything in this app — every module and record, including files/photos — except your keys above, which stay on this device. Move the file however you\'d move any file between your phone and laptop; Import reads one back in. Lots of large photos means a large backup file — no compression here, just a plain honest tradeoff.'));
+
+    const lastRow = el('div', 'field-hint'); lastRow.id = 'lastExportedRow'; lastRow.style.marginTop = '10px';
+    lastRow.textContent = 'Last exported: ' + formatLastExported();
+    body.appendChild(lastRow);
+
+    const schedGrp = el('div', 'field-group'); schedGrp.style.marginTop = '8px';
+    schedGrp.appendChild(el('label', 'field-label', 'Export'));
+    const schedSelect = document.createElement('select');
+    [['manual','Manual — I\'ll export myself'], ['daily','Daily — automatically, next time I open the app'], ['weekly','Weekly — automatically, next time I open the app']].forEach(([val,label]) => {
+      const o = document.createElement('option'); o.value = val; o.textContent = label;
+      if ((state.settings.exportSchedule || 'manual') === val) o.selected = true;
+      schedSelect.appendChild(o);
+    });
+    schedSelect.onchange = () => { state.settings.exportSchedule = schedSelect.value; saveState(); };
+    schedGrp.appendChild(schedSelect);
+    body.appendChild(schedGrp);
+
+    const btnRow = el('div', ''); btnRow.style.display = 'flex'; btnRow.style.gap = '8px'; btnRow.style.marginTop = '8px';
+    const exportBtn = buttonEl('Export now', 'btn-secondary', async () => {
+      exportBtn.disabled = true; exportBtn.textContent = 'Exporting…';
+      await triggerExportDownload(false);
+      exportBtn.disabled = false; exportBtn.textContent = 'Export now';
+      lastRow.textContent = 'Last exported: ' + formatLastExported();
+    });
+    const importBtn = buttonEl('Import from file…', 'btn-secondary', () => openImportPicker(() => {
+      lastRow.textContent = 'Last exported: ' + formatLastExported();
+    }));
+    btnRow.appendChild(exportBtn); btnRow.appendChild(importBtn);
+    body.appendChild(btnRow);
+  }, [ buttonEl('Done', 'btn-primary', closeModal) ]);
+}
+
+function formatLastExported(){
+  const ts = state.settings.lastExportedAt;
+  if (!ts) return 'never';
+  return formatDateTime(ts);
+}
+
+async function buildExportPayload(){
+  // Deliberately excludes `settings` entirely — API keys and this device's
+  // export schedule stay device-specific, never travel in a portable file.
+  // File/photo attachments live in IndexedDB, not `state` — pull each one
+  // in and base64-embed it so a single file is still the whole backup.
+  // Known tradeoff, not hidden: lots of large photos means a large export
+  // file. No attempt at compression or splitting into multiple files here.
+  const modules = JSON.parse(JSON.stringify(state.modules));
+  const records = JSON.parse(JSON.stringify(state.records));
+  for (const mod of modules){
+    if (mod.shape !== 'files') continue;
+    for (const rec of (records[mod.id] || [])){
+      if (!rec.attachment) continue;
+      const stored = await idbGetBlob(rec.attachment.idbKey);
+      if (stored) rec.attachment.data = await blobToBase64(stored.blob);
+    }
+  }
+  return JSON.stringify({
+    appVersion: 'note-goat-v1',
+    exportedAt: Date.now(),
+    modules,
+    records,
+  }, null, 2);
+}
+
+async function triggerExportDownload(auto){
+  const payload = await buildExportPayload();
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'note-goat-backup-' + dateStr + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  state.settings.lastExportedAt = Date.now();
+  saveState();
+  showToast(auto ? 'Backup exported automatically.' : 'Backup exported.');
+}
+
+function openImportPicker(onDone){
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'application/json,.json';
+  input.onchange = async () => {
+    const file = input.files[0]; if (!file) return;
+    let parsed;
+    try {
+      const text = await file.text();
+      parsed = JSON.parse(text);
+      if (!parsed || !Array.isArray(parsed.modules) || typeof parsed.records !== 'object') throw new Error('not a Note Goat backup file');
+    } catch(e){
+      alert('Couldn\'t read that file as a Note Goat backup (' + e.message + ').');
+      return;
+    }
+    const ok = await confirmModal('This replaces <strong>everything</strong> currently in Note Goat — ' +
+      state.modules.length + ' module' + (state.modules.length===1?'':'s') + ' — with what\'s in this file (from ' +
+      (parsed.exportedAt ? formatDateTime(parsed.exportedAt) : 'an unknown time') + '). This can\'t be undone. Continue?');
+    if (!ok) return;
+    // Attachments carry as base64 inside the file; re-store each one into
+    // this device's IndexedDB under a fresh key (never trust an imported
+    // key to still be free) before dropping the metadata into state.
+    for (const mod of parsed.modules){
+      if (mod.shape !== 'files') continue;
+      for (const rec of (parsed.records[mod.id] || [])){
+        if (!rec.attachment || !rec.attachment.data) continue;
+        const blob = base64ToBlob(rec.attachment.data, rec.attachment.mimeType);
+        const newKey = uid('file');
+        try { await idbPutBlob(newKey, blob, rec.attachment.name, rec.attachment.mimeType); }
+        catch(e){ console.warn('Could not restore attachment for', rec.id, e); }
+        rec.attachment = { idbKey: newKey, name: rec.attachment.name, mimeType: rec.attachment.mimeType, size: rec.attachment.size };
+      }
+    }
+    state.modules = parsed.modules;
+    state.records = parsed.records;
+    saveState();
+    render();
+    showToast('Import complete.');
+    if (onDone) onDone();
+  };
+  input.click();
+}
+
+/* Checked once at startup: if a schedule is set and enough time has
+   passed since the last export, export right now, quietly. Never prompts
+   — the whole point of choosing a schedule over Manual is not having to
+   decide each time. */
+function checkScheduledExport(){
+  const sched = state.settings.exportSchedule;
+  if (!sched || sched === 'manual') return;
+  const intervalMs = sched === 'daily' ? 24*60*60*1000 : 7*24*60*60*1000;
+  const last = state.settings.lastExportedAt || 0;
+  if (Date.now() - last >= intervalMs) triggerExportDownload(true);
+}
+
+function showToast(text){
+  const t = document.createElement('div');
+  t.textContent = text;
+  t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);' +
+    'background:var(--ink);color:var(--panel);padding:9px 16px;border-radius:20px;font-size:12.5px;' +
+    'box-shadow:0 8px 24px rgba(0,0,0,0.2);z-index:200;opacity:0;transition:opacity .2s;';
+  document.body.appendChild(t);
+  requestAnimationFrame(() => { t.style.opacity = '1'; });
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 250); }, 3000);
+}
+
+function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
+  _attempt = _attempt || 0;
+  if (!state.settings.googleClientId || !state.settings.googleApiKey){
+    if (onFailed) onFailed('Google isn\'t configured — add a Client ID and API key under Connections first.');
+    return;
+  }
+  if (typeof gapi === 'undefined' || typeof google === 'undefined'){
+    // Google's own scripts may still be loading — retry briefly, but give up
+    // and report failure rather than looping forever if they never show up
+    // (offline, blocked, or the scripts genuinely failed to load).
+    if (_attempt >= 10){
+      if (onFailed) onFailed('Couldn\'t reach Google\'s sign-in — check your connection and try again.');
+      return;
+    }
+    setTimeout(() => tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt + 1), 500);
+    return;
+  }
+  if (googleRt.tokenClient){
+    if (promptSignIn) googleRt.tokenClient.requestAccessToken();
+    return;
+  }
+  gapi.load('client', async () => {
+    try {
+      await gapi.client.init({
+        apiKey: state.settings.googleApiKey,
+        discoveryDocs: [
+          'https://sheets.googleapis.com/$discovery/rest?version=v4',
+          'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
+          'https://docs.googleapis.com/$discovery/rest?version=v1',
+          'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest',
+        ],
+      });
+    } catch(e){
+      console.warn('Google client init failed', e);
+      if (onFailed) onFailed('Couldn\'t set up the Google connection (' + (e.message || 'check your API key') + ').');
+      return;
+    }
+    googleRt.tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: state.settings.googleClientId,
+      scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/calendar.events',
+      callback: (resp) => {
+        if (resp.access_token){
+          googleRt.accessToken = resp.access_token;
+          googleRt.connected = true;
+          gapi.client.setToken({ access_token: resp.access_token });
+          if (onConnected) onConnected();
+        }
+      },
+      error_callback: (err) => {
+        console.error('Google sign-in error', err);
+        if (onFailed) onFailed('Google sign-in didn\'t complete. If your browser blocked a popup, allow popups for this site and try again.');
+        else alert('Google sign-in didn\'t complete. If your browser blocked a popup, allow popups for this site and try again.');
+      },
+    });
+    if (promptSignIn) googleRt.tokenClient.requestAccessToken();
+  });
+}
+
+/* ---------- Claude API (BYOK) ---------- */
+const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+async function callClaude({ system, userContent, maxTokens }){
+  if (!state.settings.anthropicKey) throw new Error('NO_KEY');
+  const res = await fetch(CLAUDE_API_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': state.settings.anthropicKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: maxTokens || 1024,
+      system: system,
+      messages: [{ role: 'user', content: userContent }],
+    }),
+  });
+  if (!res.ok){
+    let detail = '';
+    try { detail = (await res.json()).error?.message || ''; } catch(e){}
+    throw new Error(detail || ('HTTP ' + res.status));
+  }
+  const json = await res.json();
+  const block = (json.content || []).find(b => b.type === 'text');
+  return block ? block.text : '';
+}
+
+/* =========================================================
+   Sync — one-way push only, per-shape target rules
+   ========================================================= */
+const SYNC_REFUSE_MESSAGES = {
+  'table|calendar':     'Not offered — a table of records has no single date/time to schedule.',
+  'notes|calendar':     'Not offered — freeform notes have no date/time to schedule.',
+  'checklist|docx':     'Not offered — a checklist\'s done/not-done state doesn\'t have a good home in a document; that\'s the whole point of a checklist.',
+  'checklist|calendar': 'Not offered — a checklist has no date/time to schedule.',
+  'event|docx':         'Not offered — scheduled things belong on a calendar, not in a document.',
+  'files|sheets':       'Not offered — files/photos stay on this device, not Drive; there\'s no file data here to put in a spreadsheet.',
+  'files|docx':         'Not offered — files/photos stay on this device, not Drive.',
+  'files|calendar':     'Not offered — files/photos have no date/time to schedule.',
+};
+
+function openSyncModal(mod){
+  openModal('Sync — ' + mod.name, (body) => {
+    const statusBox = el('div', ''); statusBox.id = 'syncStatusBox';
+    Object.keys(SYNC_TARGET_LABELS).forEach(target => {
+      const rule = SYNC_RULES[mod.shape][target];
+      const row = el('div', 'schema-field-row');
+      row.style.alignItems = 'flex-start';
+      const info = el('div', ''); info.style.flex = '1';
+      info.appendChild(el('div', '', SYNC_TARGET_LABELS[target]));
+      if (rule === 'refuse'){
+        info.appendChild(el('div', 'field-hint', SYNC_REFUSE_MESSAGES[mod.shape + '|' + target]));
+      } else if (rule === 'warn'){
+        info.appendChild(el('div', 'field-hint', SYNC_WARN_MESSAGES[mod.shape + '|' + target]));
+      } else {
+        info.appendChild(el('div', 'field-hint', 'A natural fit for this module\'s shape.'));
+      }
+      if (target === 'calendar' && rule !== 'refuse'){
+        const remLabel = document.createElement('label');
+        remLabel.style.display = 'flex'; remLabel.style.alignItems = 'center'; remLabel.style.gap = '6px';
+        remLabel.style.marginTop = '6px'; remLabel.style.fontSize = '13.5px';
+        const remCb = document.createElement('input'); remCb.type = 'checkbox'; remCb.style.width = 'auto';
+        remCb.checked = mod.calendarReminder !== false;
+        remCb.onchange = () => { mod.calendarReminder = remCb.checked; saveState(); };
+        remLabel.appendChild(remCb);
+        remLabel.appendChild(document.createTextNode('Reminder — 9am the day before (all-day events) or 24h before (timed events)'));
+        info.appendChild(remLabel);
+      }
+      row.appendChild(info);
+      const btn = document.createElement('button');
+      btn.className = 'btn ' + (rule === 'refuse' ? 'btn-secondary' : 'btn-primary');
+      btn.textContent = rule === 'refuse' ? 'Not available' : 'Sync now';
+      btn.disabled = (rule === 'refuse');
+      btn.onclick = async () => {
+        if (rule === 'warn'){
+          const ok = await confirmModal(SYNC_WARN_MESSAGES[mod.shape + '|' + target]);
+          if (!ok) return;
+        }
+        runSync(mod, target, statusBox);
+      };
+      row.appendChild(btn);
+      body.appendChild(row);
+    });
+    body.appendChild(statusBox);
+  }, [ buttonEl('Close', 'btn-secondary', closeModal) ]);
+}
+
+function syncStatus(box, text, isError){
+  box.innerHTML = '';
+  box.appendChild(el('div', isError ? 'error-box' : 'shape-note', text));
+}
+
+async function runSync(mod, target, statusBox){
+  if (!state.settings.googleClientId || !state.settings.googleApiKey){
+    syncStatus(statusBox, 'Google isn\'t configured yet — add your Client ID and API key under Connections first.', true);
+    return;
+  }
+  if (!googleRt.connected){
+    syncStatus(statusBox, 'Connecting to Google…', false);
+    tryInitGoogle(true,
+      () => runSync(mod, target, statusBox),
+      (msg) => syncStatus(statusBox, msg, true));
+    return;
+  }
+  syncStatus(statusBox, 'Syncing…', false);
+  try {
+    if (target === 'sheets') await syncModuleToSheets(mod);
+    else if (target === 'docx') await syncModuleToDocx(mod);
+    else if (target === 'calendar') await syncModuleToCalendar(mod);
+    saveState();
+    syncStatus(statusBox, 'Synced just now.', false);
+  } catch(err){
+    console.error('Sync failed', err);
+    syncStatus(statusBox, 'Sync didn\'t go through (' + (err.message || 'unknown error') + '). Nothing was changed here locally.', true);
+  }
+}
+
+function fieldValueForExport(f, rec){
+  if (f.type === 'link-one' || f.type === 'link-many') return linkFieldDisplay(f, rec);
+  if (f.type === 'date') return rec.fields[f.id] ? formatDate(rec.fields[f.id]) : '';
+  if (f.type === 'checkbox') return rec.fields[f.id] ? 'Yes' : 'No';
+  return rec.fields[f.id] || '';
+}
+
+async function findOrCreateFolder(name, parentId){
+  const safeName = name.replace(/'/g, "\\'");
+  const parentClause = parentId ? (" and '" + parentId + "' in parents") : " and 'root' in parents";
+  const q = "mimeType='application/vnd.google-apps.folder' and name='" + safeName + "' and trashed=false" + parentClause;
+  const listRes = await gapi.client.drive.files.list({ q, fields: 'files(id,name)' });
+  if (listRes.result.files && listRes.result.files.length) return listRes.result.files[0].id;
+  const createRes = await gapi.client.drive.files.create({
+    resource: { name, mimeType: 'application/vnd.google-apps.folder', parents: parentId ? [parentId] : [] },
+    fields: 'id',
+  });
+  return createRes.result.id;
+}
+
+async function syncModuleToSheets(mod){
+  if (!state.settings.spreadsheetId){
+    const folderId = await findOrCreateFolder('Note Goat', null);
+    const res = await gapi.client.sheets.spreadsheets.create({ properties: { title: 'Note Goat Sync' } });
+    state.settings.spreadsheetId = res.result.spreadsheetId;
+    await gapi.client.drive.files.update({ fileId: state.settings.spreadsheetId, addParents: folderId, removeParents: 'root', fields: 'id,parents' });
+  }
+  const ssId = state.settings.spreadsheetId;
+  const meta = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: ssId });
+  const existingTitles = (meta.result.sheets || []).map(s => s.properties.title);
+  const tabName = mod.name.slice(0, 95); // Sheets tab title limit
+  if (!existingTitles.includes(tabName)){
+    await gapi.client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: ssId,
+      resource: { requests: [{ addSheet: { properties: { title: tabName } } }] },
+    });
+  }
+  const headers = mod.fields.map(f => f.label).concat('Notes');
+  const rows = moduleRecords(mod.id).map(rec => mod.fields.map(f => fieldValueForExport(f, rec)).concat(rec.notes || ''));
+  await gapi.client.sheets.spreadsheets.values.update({
+    spreadsheetId: ssId,
+    range: "'" + tabName + "'!A1",
+    valueInputOption: 'RAW',
+    resource: { values: [headers, ...rows] },
+  });
+}
+
+async function syncModuleToDocx(mod){
+  if (!mod.docId){
+    const folderId = await findOrCreateFolder('Note Goat', null);
+    const res = await gapi.client.docs.documents.create({ resource: { title: 'Note Goat — ' + mod.name } });
+    mod.docId = res.result.documentId;
+    await gapi.client.drive.files.update({ fileId: mod.docId, addParents: folderId, removeParents: 'root', fields: 'id,parents' });
+  }
+  const doc = await gapi.client.docs.documents.get({ documentId: mod.docId });
+  const content = doc.result.body.content || [];
+  const endIndex = content.length ? content[content.length - 1].endIndex : 1;
+  const requests = [];
+  if (endIndex > 2) requests.push({ deleteContentRange: { range: { startIndex: 1, endIndex: endIndex - 1 } } });
+  const parts = moduleRecords(mod.id).map(rec => {
+    const title = recordTitle(mod, rec);
+    const body = rec.notes || (mod.fields.map(f => f.label + ': ' + fieldValueForExport(f, rec)).join('\n'));
+    return title + '\n' + body;
+  });
+  const text = parts.length ? parts.join('\n\n---\n\n') + '\n' : '(no records yet)\n';
+  requests.push({ insertText: { location: { index: 1 }, text } });
+  await gapi.client.docs.documents.batchUpdate({ documentId: mod.docId, resource: { requests } });
+}
+
+// A "local" YYYY-MM-DDTHH:MM:SS string (no offset/Z) for a date+time
+// that's `hours` after dateVal/timeVal, read back using the wall-clock
+// components — the timeZone field on the request is what pins it to a
+// real instant, not this string.
+function addHoursToLocalDateTime(dateVal, timeVal, hours){
+  const [y, mo, d] = dateVal.split('-').map(Number);
+  const [h, mi] = timeVal.split(':').map(Number);
+  const dt = new Date(y, mo - 1, d, h, mi, 0);
+  dt.setHours(dt.getHours() + hours);
+  const pad = n => String(n).padStart(2, '0');
+  return dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate()) +
+    'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes()) + ':00';
+}
+
+async function syncModuleToCalendar(mod){
+  const df = dateField(mod);
+  if (!df) throw new Error('this module has no date field');
+  const tf = timeField(mod);
+  for (const rec of moduleRecords(mod.id)){
+    const dateVal = rec.fields[df.id];
+    if (!dateVal) continue;
+    const timeVal = tf ? rec.fields[tf.id] : '';
+    let eventResource;
+    if (timeVal){
+      // Has a time of day too — push as a timed, 1-hour event instead of
+      // all-day, in the browser's own timezone.
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      eventResource = {
+        summary: recordTitle(mod, rec),
+        description: rec.notes || '',
+        start: { dateTime: dateVal + 'T' + timeVal + ':00', timeZone },
+        end: { dateTime: addHoursToLocalDateTime(dateVal, timeVal, 1), timeZone },
+      };
+    } else {
+      // Date only — keep the existing all-day behavior.
+      eventResource = {
+        summary: recordTitle(mod, rec),
+        description: rec.notes || '',
+        start: { date: dateVal },
+        end: { date: dateVal },
+      };
+    }
+    // Reminder minutes are measured from event start, so a timed event
+    // (start = the actual time) needs a longer lead than an all-day one
+    // (start = midnight) to land at a sensible moment.
+    if (mod.calendarReminder !== false){
+      eventResource.reminders = {
+        useDefault: false,
+        overrides: [{ method: 'popup', minutes: timeVal ? CALENDAR_REMINDER_MINUTES_TIMED : CALENDAR_REMINDER_MINUTES_ALLDAY }],
+      };
+    }
+    if (rec.calendarEventId){
+      await gapi.client.calendar.events.update({ calendarId: 'primary', eventId: rec.calendarEventId, resource: eventResource });
+    } else {
+      const res = await gapi.client.calendar.events.insert({ calendarId: 'primary', resource: eventResource });
+      rec.calendarEventId = res.result.id;
+    }
+  }
+}
+
+/* =========================================================
+   Small helpers
+   ========================================================= */
+function el(tag, cls, text){
+  const e = document.createElement(tag || 'div');
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const WC_PALETTE = ['var(--wc-1)','var(--wc-2)','var(--wc-3)','var(--wc-4)','var(--wc-5)','var(--wc-6)'];
+function colorForKey(str){
+  const s = String(str || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return WC_PALETTE[h % WC_PALETTE.length];
+}
+function formatDate(iso){
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+}
+function formatDateTime(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+}
+
+/* =========================================================
+   Manual — a self-contained document (its own <style>, own fonts) since
+   it's rendered in an iframe via srcdoc and inherits nothing from the
+   parent page. Colors are Note Goat's own tokens, not copied from
+   any sibling app's manual, so it reads as part of this app.
+   ========================================================= */
+let manualLoaded = false;
+document.getElementById('openManualBtn').onclick = () => {
+  const frame = document.getElementById('manualFrame');
+  if (!manualLoaded){ frame.srcdoc = MANUAL_HTML; manualLoaded = true; }
+  document.getElementById('manualOverlay').classList.add('open');
+};
+document.getElementById('manualCloseBtn').onclick = () => document.getElementById('manualOverlay').classList.remove('open');
+document.getElementById('manualOverlay').onclick = (e) => { if (e.target.id === 'manualOverlay') document.getElementById('manualOverlay').classList.remove('open'); };
+
+const MANUAL_HTML = `<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+:root{
+  --ground:#F3EEE1; --panel:#FFFCF5; --panel-raised:#FFFFFF;
+  --line:#E9E2D2; --text:#2B2A27; --text2:#6E6A62; --accent:#2C6E7E; --accent-soft:rgba(44,110,126,0.1);
+  --sans:system-ui,-apple-system,'Segoe UI',sans-serif; --mono:ui-monospace,'SF Mono','IBM Plex Mono',monospace;
+}
+/* No external font dependency here on purpose — the manual should render
+   instantly, including offline; it doesn't need to match the app's Inter/
+   IBM Plex Mono pixel-for-pixel, just its colors. */
+*{box-sizing:border-box;}
+body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;}
+.shell{max-width:900px;margin:0 auto;padding:0 24px 80px;}
+.masthead{border-bottom:1px solid var(--line);padding:28px 0 22px;margin-bottom:26px;position:relative;overflow:hidden;}
+.stripe{height:10px;border-radius:6px;margin-bottom:16px;
+  background:linear-gradient(rgba(255,255,255,0.15),rgba(255,255,255,0.15)),
+  repeating-linear-gradient(90deg,#2FB4C2 0 22px,#3E6FA6 22px 50px,#2C7A68 50px 74px,#A13E63 74px 92px,#7C8A4A 92px 112px,#C39A52 112px 140px);}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin:0 0 8px;}
+.masthead h1{font-family:var(--mono);font-size:28px;margin:0 0 10px;}
+.lede{color:var(--text2);max-width:64ch;margin:0 0 16px;}
+.factrow{display:flex;flex-wrap:wrap;gap:8px 18px;font-family:var(--mono);font-size:12px;color:var(--text2);}
+.factrow b{color:var(--text);font-weight:600;}
+.layout{display:grid;grid-template-columns:190px 1fr;gap:36px;align-items:start;}
+.toc{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;overscroll-behavior:contain;}
+.toc-label{font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text2);margin:0 0 10px;}
+.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;}
+.toc a{color:var(--text2);text-decoration:none;font-size:13px;}
+.toc a:hover{color:var(--accent);}
+section{margin-bottom:34px;scroll-margin-top:20px;}
+.sec-num{font-family:var(--mono);font-size:12px;color:var(--accent);margin:0 0 4px;}
+section h2{font-family:var(--mono);font-size:17px;margin:0 0 10px;}
+section h3{font-size:14px;margin:16px 0 6px;}
+section p{margin:0 0 10px;max-width:64ch;}
+section code{font-family:var(--mono);font-size:0.9em;background:var(--panel-raised);border:1px solid var(--line);border-radius:3px;padding:1px 5px;}
+ol.steps{padding-left:20px;max-width:62ch;}
+ol.steps li{margin-bottom:8px;}
+ul.plain{padding-left:20px;max-width:62ch;}
+ul.plain li{margin-bottom:8px;}
+.note{border:1px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:10px 14px;font-size:13.5px;max-width:60ch;}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:var(--text2);font-size:13px;}
+</style></head>
+<body>
+<div class="shell">
+  <header class="masthead">
+    <div class="stripe"></div>
+    <p class="eyebrow">User manual</p>
+    <h1>Note Goat</h1>
+    <p class="lede">A single-file, browser-only, domain-agnostic personal organizer — appointments, doctors, medications, tasks, notes, files, or whatever you build a module for.</p>
+    <div class="factrow">
+      <span><b>Runs</b>&nbsp;entirely in your browser</span>
+      <span><b>Data</b>&nbsp;stays in this browser (or IndexedDB for files)</span>
+      <span><b>AI &amp; sync</b>&nbsp;call Anthropic/Google directly, with your own keys</span>
+      <span><b>Backup</b>&nbsp;Export / Import, built in</span>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="toc">
+      <p class="toc-label">Contents</p>
+      <ol>
+        <li><a href="#home">The Home page</a></li>
+        <li><a href="#modules">Modules &amp; the Library</a></li>
+        <li><a href="#records">Records &amp; notes</a></li>
+        <li><a href="#schema">Editing a module later</a></li>
+        <li><a href="#links">Links between modules</a></li>
+        <li><a href="#files">File / photo modules</a></li>
+        <li><a href="#capture">Quick Capture &amp; AI cleanup</a></li>
+        <li><a href="#sync">Sync</a></li>
+        <li><a href="#settings">Settings: keys &amp; connections</a></li>
+        <li><a href="#backup">Backup &amp; transfer</a></li>
+        <li><a href="#privacy">Data &amp; privacy</a></li>
+        <li><a href="#phone">Installing on your phone</a></li>
+        <li><a href="#limits">Known limits</a></li>
+      </ol>
+    </nav>
+    <main>
+      <section id="home">
+        <p class="sec-num">01</p>
+        <h2>The Home page</h2>
+        <p>Four cards, deliberately not a dashboard trying to show everything: <b>Quick capture</b> (see below), and three collapsed cards — <b>Coming up</b> (anything with a date, across every module, soonest first), <b>Next steps</b>, and <b>Unanswered questions</b>. Click a card's header to expand it into the full list; each row opens straight to that record.</p>
+        <p>A bare count is avoided on purpose — you'll always see the soonest item alongside the number, not just a number with no content behind it.</p>
+      </section>
+
+      <section id="modules">
+        <p class="sec-num">02</p>
+        <h2>Modules &amp; the Library</h2>
+        <p>A <b>module</b> is a named category with its own fields — Doctors, Medications, whatever you need. Every module has a <b>shape</b> that decides how its records are displayed and which sync targets make sense for it: repeating rows (a table), freeform notes, a checklist, a dated/scheduled thing, or a file/photo.</p>
+        <p>Open the <b>Library</b> (sidebar) to add one. Three ways in:</p>
+        <ol class="steps">
+          <li><b>Pick a template</b> — Starters (generic) or Medical (a first concrete pack: Doctors, Appointments, Referrals, Medications, Notes to Bring). Name it whatever you want; templates are a starting point, not a locked configuration.</li>
+          <li><b>Describe what you need</b> — the prominent option under Custom. Tell the AI what you're trying to track and it proposes a name, shape, fields, and links to modules you already have. Nothing is created yet — you land in the ordinary module editor with that proposal pre-filled, free to change anything, and you still click Create.</li>
+          <li><b>Advanced: build it yourself</b> — the small link under the AI option. Pick a shape and add fields one at a time, no AI involved. Same editor either way.</li>
+        </ol>
+        <p>A module you've created lives in the sidebar. Click its ⚙ to edit its fields later.</p>
+      </section>
+
+      <section id="records">
+        <p class="sec-num">03</p>
+        <h2>Records &amp; notes</h2>
+        <p>Inside a module, <b>+ Add record</b> opens a form for that module's fields. Every record — regardless of shape — also gets a built-in <b>Notes</b> field automatically; you never have to add it yourself.</p>
+        <p>How a module's records are shown depends on its shape: a table for repeating rows, a checklist with checkboxes, note cards for freeform notes, a date-sorted list for scheduled things, and a thumbnail grid for files (see below).</p>
+      </section>
+
+      <section id="schema">
+        <p class="sec-num">04</p>
+        <h2>Editing a module later</h2>
+        <p>Open a module's ⚙ any time to add, rename, retype, or remove fields — even after it already has records in it.</p>
+        <ul class="plain">
+          <li>Adding a field, reordering, or a plain rename applies immediately.</li>
+          <li>Deleting a field <i>with data in it</i>, or narrowing its type in a way some existing values don't fit, asks you to confirm first — naming exactly how many records are affected.</li>
+          <li>If a type change genuinely can't apply to existing data (turning a field with "555-CALL-DOC" in it into a Number, say), it's refused outright with an error naming the problem record — never applied halfway.</li>
+        </ul>
+        <p>A module's <b>shape</b> can't be changed after creation — make a new module if you need a different one.</p>
+      </section>
+
+      <section id="links">
+        <p class="sec-num">05</p>
+        <h2>Links between modules</h2>
+        <p>A field can be a <b>Link — one record</b> or <b>Link — many records</b>, pointing at records in another module (add one from a module's ⚙, same as any field, then choose which module it links to). You always pick the link yourself from a list — nothing is guessed or inferred from content.</p>
+        <p>Open any record and you'll see two things beyond its own fields: what it links <i>to</i>, and — if anything points at it — a <b>Linked from</b> section showing what links <i>to it</i>. Every row is clickable, so you can hop from a Doctor to an Appointment to that appointment's Notes to Bring and back.</p>
+        <div class="note">Deleting something other records link to warns you first, naming how many. If a link ever goes stale another way, it shows as "linked record no longer exists" rather than silently disappearing.</div>
+      </section>
+
+      <section id="files">
+        <p class="sec-num">06</p>
+        <h2>File / photo modules</h2>
+        <p>A module can have the <b>File / photo</b> shape — one uploaded file or photo per record, for things you want to keep, like a scanned insurance card or a piece of referral paperwork. Every record of this shape has a built-in upload field, the same way every record has a built-in Notes field.</p>
+        <p>Files are stored on this device, in your browser's local file storage (IndexedDB) — never uploaded to Google Drive or anywhere else. Open a record to view or download its file, or remove it.</p>
+        <div class="note">This is a completely separate feature from Quick Capture's photo input (below). Quick Capture's photo is used once, to help AI write a clean note, and then discarded — nothing about it is kept. A File / photo module record keeps the actual file, on purpose, with no AI involved at all.</div>
+      </section>
+
+      <section id="capture">
+        <p class="sec-num">07</p>
+        <h2>Quick Capture &amp; AI cleanup</h2>
+        <p>The card at the top of Home. Type or paste a quick note and <b>Save note</b> — it's filed straight into your Personal Notes module, no AI required.</p>
+        <p>If you'd rather hand it a photo of messy handwritten or typed notes, attach one, then <b>Clean up with AI</b>. It reads the photo (and any typed text alongside it) and rewrites it into one organized note, shown in the box for you to edit — nothing saves until you click Save note. Needs your Anthropic key under Settings; the photo itself is never kept, only the resulting text.</p>
+        <p>If a photo is genuinely illegible, the note says so rather than guessing at what it can't read.</p>
+      </section>
+
+      <section id="sync">
+        <p class="sec-num">08</p>
+        <h2>Sync</h2>
+        <p>Open a module and click <b>Sync</b> to push it to Google Sheets, Docs, or Calendar — one-way only, on demand. Nothing is ever read back from Google; editing something on the Google side won't reflect back here.</p>
+        <p>Which targets are offered depends on the module's shape: a natural fit (a table to Sheets, a dated module to Calendar) syncs straight away; a workable-but-lossy fit (a checklist to Sheets, say) asks you to confirm first and says exactly what will be lost; anything that wouldn't make sense at all (files, or anything without a date, to Calendar) isn't offered, with a reason shown. Needs your own Google Cloud project, connected under Settings.</p>
+        <p>Calendar sync adds a popup reminder to every event it pushes — 9am the day before for an all-day event (a Date field only), or 24 hours before for a timed one (see below). It's on by default; the <b>Reminder</b> checkbox next to Google Calendar in this Sync screen turns it off for this module, remembered from then on.</p>
+        <p>A dated/scheduled module can add an optional <b>Time</b> field alongside its Date field. Fill one in on a record and that record syncs as a real 1-hour timed event instead of all-day, in your browser's own timezone; records with no time keep syncing all-day, unchanged.</p>
+      </section>
+
+      <section id="settings">
+        <p class="sec-num">09</p>
+        <h2>Settings: keys &amp; connections</h2>
+        <p>The ⚙ Settings button (sidebar) holds two keys, both stored only in this browser and used only for the direct calls this app makes:</p>
+        <ol class="steps">
+          <li><b>Anthropic API key</b> — powers Quick Capture's AI cleanup and AI-assisted module creation.</li>
+          <li><b>Google Client ID + API key</b>, from your own free Google Cloud project — powers Sync. Click Connect / Sign in each session; the sign-in itself doesn't persist across a reload, by design.</li>
+        </ol>
+      </section>
+
+      <section id="backup">
+        <p class="sec-num">10</p>
+        <h2>Backup &amp; transfer</h2>
+        <p>Also under Settings. <b>Export</b> writes one file with everything in the app — every module, every record, every file/photo — except your keys, which never leave this device. Move that file however you'd move any file (AirDrop, email to yourself, a cloud-drive folder) and use <b>Import</b> on the other device to read it back in.</p>
+        <p>Import always asks you to confirm first, naming what it's about to replace — it's a full restore, not a merge, and it's the only way data moves between devices; nothing syncs automatically.</p>
+        <p>Set Export to <b>Daily</b> or <b>Weekly</b> instead of Manual and the app checks, once, the next time you open it — if it's overdue, it exports quietly with a small confirmation, no prompt. That's not a true background schedule (nothing can run while the app is closed, especially on iPhone) — it's "checked whenever you happen to open it," which works out the same in practice if you use the app regularly.</p>
+      </section>
+
+      <section id="privacy">
+        <p class="sec-num">11</p>
+        <h2>Data &amp; privacy</h2>
+        <p>Everything lives in this browser: module and record data in <code>localStorage</code>, file/photo bytes in IndexedDB. No account, no server of ours. The only network calls this app makes are the ones you trigger — an Anthropic call for AI capture or module setup, a Google call when you click Sync — using the keys you supplied.</p>
+      </section>
+
+      <section id="phone">
+        <p class="sec-num">12</p>
+        <h2>Installing on your phone</h2>
+        <p>Once this app is hosted somewhere over <code>https://</code> (e.g. GitHub Pages), your browser's "Add to Home Screen" / "Install app" option gives it a real icon and name instead of just a bookmark, plus a minimal offline shell.</p>
+      </section>
+
+      <section id="limits">
+        <p class="sec-num">13</p>
+        <h2>Known limits</h2>
+        <ul class="plain">
+          <li>Nothing here can stop a browser's own "clear site data" from wiping everything — that's a browser boundary, not something any web page can override. Regular Export is the real protection.</li>
+          <li>Import replaces everything currently in the app; it doesn't merge two devices' changes together.</li>
+          <li>A backup file with lots of large photos in it will itself be large — no compression is attempted.</li>
+          <li>AI cleanup quality depends on how legible the input is; a genuinely illegible photo produces a note that says so, not a confident guess.</li>
+        </ul>
+      </section>
+
+      <footer>Note Goat is a self-contained page — this manual describes its behavior as installed, based on how the app itself is built. It has no version number to cite.</footer>
+    </main>
+  </div>
+</div>
+<script>
+  // Handle TOC clicks ourselves instead of native #hash navigation — inside
+  // a srcdoc iframe, native anchor-jumps can resolve against the parent
+  // page's URL instead of this document, which can end up loading the real
+  // app into this iframe instead of just scrolling to the section.
+  document.querySelectorAll('.toc a[href^="#"]').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = document.getElementById(a.getAttribute('href').slice(1));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+<\/script>
+</body></html>`;
+
+/* =========================================================
+   Init
+   ========================================================= */
+render();
+checkScheduledExport();
+if (navigator.storage && navigator.storage.persist){
+  navigator.storage.persist().catch(() => {}); // best-effort; doesn't guard against a deliberate "clear site data"
+}
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
