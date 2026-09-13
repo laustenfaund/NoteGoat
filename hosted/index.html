@@ -353,7 +353,7 @@ table.record-table td.actions{white-space:nowrap;width:1%;}
 /* =========================================================
    Data model
    ========================================================= */
-const STORE_KEY = 'tc_state_v1';
+const STORE_KEY = 'notegoat_state_v1';
 
 const FIELD_TYPES = {
   text:      { label: 'Short text' },
@@ -490,7 +490,7 @@ function saveState(){
    record's attachment lives under) persists in localStorage; the bytes
    themselves live here, and travel separately through Backup export as
    base64, not through localStorage at all. */
-const IDB_NAME = 'tc_files_v1';
+const IDB_NAME = 'notegoat_files_v1';
 const IDB_STORE = 'blobs';
 let idbOpenPromise = null;
 function openIdb(){
