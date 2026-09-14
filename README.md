@@ -97,7 +97,7 @@ cache instead of just a bookmark.
 1. Make sure this repo is public (Settings → Danger Zone → Change
    visibility), then enable GitHub Pages (Settings → Pages → Deploy from
    branch → `main` → `/` root).
-2. Once it's live, open `https://laustenfaund.github.io/Note_Goat/`
+2. Once it's live, open `https://laustenfaund.github.io/NoteGoat/`
    on your phone — not the repo's `github.com` page.
 3. Use your browser's "Add to Home Screen" / "Install app" option.
 
