@@ -501,7 +501,7 @@ const ALL_TEMPLATES = STARTER_TEMPLATES.concat(MEDICAL_TEMPLATES);
 
 function seedState(){
   const s = { modules: [], records: {}, view: {type:'home'},
-    settings: { anthropicKey:'', googleClientId:'', googleApiKey:'', spreadsheetId:'',
+    settings: { anthropicKey:'', proxyPasscode:'', googleClientId:'', googleApiKey:'', spreadsheetId:'',
       exportSchedule:'manual', lastExportedAt:null } };
   const seedFrom = (name, tplName) => {
     const tpl = STARTER_TEMPLATES.find(t => t.name === tplName);
@@ -534,8 +534,17 @@ function loadState(){
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      const defaults = { anthropicKey:'', googleClientId:'', googleApiKey:'', spreadsheetId:'', exportSchedule:'manual', lastExportedAt:null };
+      const defaults = { anthropicKey:'', proxyPasscode:'', googleClientId:'', googleApiKey:'', spreadsheetId:'', exportSchedule:'manual', lastExportedAt:null };
       s.settings = Object.assign({}, defaults, s.settings || {});
+      // This page and the bring-your-own-key page share one origin and one
+      // saved state. The passcode used to live in anthropicKey too, so a
+      // real sk-ant- key saved on the other page would be sent to the proxy
+      // as a "passcode". Keep them apart: move an old passcode out of
+      // anthropicKey, and never read anthropicKey here.
+      if (!s.settings.proxyPasscode && s.settings.anthropicKey && !/^sk-ant-/.test(s.settings.anthropicKey)) {
+        s.settings.proxyPasscode = s.settings.anthropicKey;
+        s.settings.anthropicKey = '';
+      }
       return s;
     }
   } catch(e){ console.warn('Could not read saved data', e); }
@@ -781,7 +790,7 @@ function renderQuickCaptureCard(){
 
   const row = el('div', 'quick-capture-row');
   const aiBtn = buttonEl('✨ Clean up with AI', 'btn-secondary', async () => {
-    if (!state.settings.anthropicKey){
+    if (!state.settings.proxyPasscode){
       errBox.innerHTML = ''; errBox.appendChild(el('div', 'error-box', 'No access passcode set yet — add one under Connections first.'));
       return;
     }
@@ -1239,7 +1248,7 @@ function openAIModuleDialog(){
       const body = document.querySelector('.modal-body');
       const desc = body._getText();
       if (!desc){ alert('Describe what you need first.'); return; }
-      if (!state.settings.anthropicKey){
+      if (!state.settings.proxyPasscode){
         body._errBox.innerHTML = '';
         body._errBox.appendChild(el('div', 'error-box', 'No access passcode set yet — add one under Connections first.'));
         return;
@@ -1782,8 +1791,8 @@ function openConnectionsModal(){
     const aGrp = el('div', 'field-group'); aGrp.style.marginTop='14px';
     aGrp.appendChild(el('label', 'field-label', 'Access passcode — powers AI capture and AI-assisted module setup'));
     const aInput = document.createElement('input'); aInput.type = 'password'; aInput.className = 'field-input';
-    aInput.value = state.settings.anthropicKey || ''; aInput.placeholder = 'passcode';
-    aInput.oninput = () => { state.settings.anthropicKey = aInput.value.trim(); saveState(); };
+    aInput.value = state.settings.proxyPasscode || ''; aInput.placeholder = 'passcode';
+    aInput.oninput = () => { state.settings.proxyPasscode = aInput.value.trim(); saveState(); };
     aGrp.appendChild(aInput);
     body.appendChild(aGrp);
 
@@ -2052,7 +2061,9 @@ function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
     }
     googleRt.tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: state.settings.googleClientId,
-      scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/calendar.events',
+      // drive.file: only files this app creates (its folder, Sheet, Docs) —
+      // not the rest of your Drive. Sheets and Docs APIs accept it for those files.
+      scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
       callback: (resp) => {
         if (resp.access_token){
           googleRt.accessToken = resp.access_token;
@@ -2078,12 +2089,12 @@ function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
 const ASSISTANT_PROXY_URL = 'https://note-goat-assistant.laustenfaund.workers.dev';
 const CLAUDE_API_URL = ASSISTANT_PROXY_URL + '/v1/messages';
 async function callClaude({ system, userContent, maxTokens }){
-  if (!state.settings.anthropicKey) throw new Error('NO_KEY');
+  if (!state.settings.proxyPasscode) throw new Error('NO_KEY');
   const res = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-passcode': state.settings.anthropicKey,
+      'x-passcode': state.settings.proxyPasscode,
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5',

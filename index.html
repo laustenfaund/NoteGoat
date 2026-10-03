@@ -2048,7 +2048,9 @@ function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
     }
     googleRt.tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: state.settings.googleClientId,
-      scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/calendar.events',
+      // drive.file: only files this app creates (its folder, Sheet, Docs) —
+      // not the rest of your Drive. Sheets and Docs APIs accept it for those files.
+      scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
       callback: (resp) => {
         if (resp.access_token){
           googleRt.accessToken = resp.access_token;
