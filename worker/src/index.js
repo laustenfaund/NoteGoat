@@ -173,6 +173,11 @@ export default {
     const globalMonthKey = `global:${month}`;
     const perUserCapCents = parseInt(env.PER_USER_DAILY_CAP_CENTS, 10);
     const globalCapCents = parseInt(env.GLOBAL_MONTHLY_CAP_CENTS, 10);
+    // A missing or mistyped cap parses to NaN, and every comparison with NaN
+    // is false — which would let every request through. Refuse instead.
+    if (!Number.isFinite(perUserCapCents) || !Number.isFinite(globalCapCents)) {
+      return jsonError(500, 'Spending caps are not configured on this proxy.', cors);
+    }
 
     const [userSpent, globalSpent] = await Promise.all([
       readInt(env.USAGE, userDayKey),
