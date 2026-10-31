@@ -20,8 +20,6 @@
 @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/ibm-plex-mono-latin-400-normal.woff2) format('woff2');}
 @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/ibm-plex-mono-latin-500-normal.woff2) format('woff2');}
 </style>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://apis.google.com/js/api.js"></script>
 <style>
 :root{
   /* Interface panels — solid, calm, easy to read. The stripes live in the
@@ -1771,6 +1769,7 @@ function buildRecordFooter(mod, rec, draft){
 let googleRt = { tokenClient: null, accessToken: null, connected: false, initPending: false };
 
 function openConnectionsModal(){
+  preloadGoogleScripts();
   openModal('Settings', (body) => {
     body.appendChild(el('div', 'tpl-group-label', 'Connections'));
     body.appendChild(el('div', 'field-hint',
@@ -1988,21 +1987,43 @@ function showToast(text){
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 250); }, 3000);
 }
 
+/* Google's sign-in and API scripts load only when Google is actually
+   needed — Connections or a module's Sync window — never on page open, so
+   using the app without sync contacts no Google site. Opening either window
+   starts the load early, so the sign-in popup isn't delayed (and blocked)
+   by a script download after the click. */
+const GOOGLE_SCRIPTS = ['https://accounts.google.com/gsi/client', 'https://apis.google.com/js/api.js'];
+const googleScriptLoads = {};
+function loadGoogleScripts(){
+  return Promise.all(GOOGLE_SCRIPTS.map(src => {
+    // One load per script; a failed one is forgotten so a later try retries
+    // only that script, never re-adding one that already loaded.
+    if (!googleScriptLoads[src]) googleScriptLoads[src] = new Promise((resolve, reject) => {
+      const tag = document.createElement('script');
+      tag.src = src; tag.async = true;
+      tag.onload = resolve;
+      tag.onerror = () => { tag.remove(); delete googleScriptLoads[src]; reject(new Error('Could not load ' + src)); };
+      document.head.appendChild(tag);
+    });
+    return googleScriptLoads[src];
+  }));
+}
+function preloadGoogleScripts(){
+  if (state.settings.googleClientId) loadGoogleScripts().catch(() => {});
+}
+
 function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
   _attempt = _attempt || 0;
   if (!state.settings.googleClientId || !state.settings.googleApiKey){
     if (onFailed) onFailed('Google isn\'t configured — add a Client ID and API key under Connections first.');
     return;
   }
-  if (typeof gapi === 'undefined' || typeof google === 'undefined'){
-    // Google's own scripts may still be loading — retry briefly, but give up
-    // and report failure rather than looping forever if they never show up
-    // (offline, blocked, or the scripts genuinely failed to load).
-    if (_attempt >= 10){
-      if (onFailed) onFailed('Couldn\'t reach Google\'s sign-in — check your connection and try again.');
-      return;
-    }
-    setTimeout(() => tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt + 1), 500);
+  if (typeof gapi === 'undefined' || typeof google === 'undefined' || !google.accounts){
+    // Load Google's scripts on first use, then try once more. Report failure
+    // (offline, blocked) rather than retrying forever.
+    const fail = () => { if (onFailed) onFailed('Couldn\'t reach Google\'s sign-in — check your connection and try again.'); };
+    if (_attempt >= 1){ fail(); return; }
+    loadGoogleScripts().then(() => tryInitGoogle(promptSignIn, onConnected, onFailed, 1), fail);
     return;
   }
   if (googleRt.tokenClient){
@@ -2090,6 +2111,7 @@ const SYNC_REFUSE_MESSAGES = {
 };
 
 function openSyncModal(mod){
+  preloadGoogleScripts();
   openModal('Sync — ' + mod.name, (body) => {
     const statusBox = el('div', ''); statusBox.id = 'syncStatusBox';
     Object.keys(SYNC_TARGET_LABELS).forEach(target => {
@@ -2515,7 +2537,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
       <section id="privacy">
         <p class="sec-num">11</p>
         <h2>Data &amp; privacy</h2>
-        <p>Everything lives in this browser: module and record data in <code>localStorage</code>, file/photo bytes in IndexedDB. No account, no server of ours. The only network calls this app makes are the ones you trigger — an Anthropic call for AI capture or module setup, a Google call when you click Sync — using the keys you supplied.</p>
+        <p>Everything lives in this browser: module and record data in <code>localStorage</code>, file/photo bytes in IndexedDB. No account, no server of ours. The only network calls this app makes are the ones you trigger — an Anthropic call for AI capture or module setup, a Google call when you click Sync — using the keys you supplied. Fonts are built in, and Google's sign-in scripts load only when you open Connections or a module's Sync window.</p>
       </section>
 
       <section id="phone">
