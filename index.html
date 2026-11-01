@@ -11,10 +11,15 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Note Goat" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://apis.google.com/js/api.js"></script>
+<!-- Fonts ship with the app (fonts/, SIL Open Font License) so opening it contacts no font service. -->
+<style>
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/inter-latin-400-normal.woff2) format('woff2');}
+@font-face{font-family:'Inter';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/inter-latin-500-normal.woff2) format('woff2');}
+@font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url(fonts/inter-latin-600-normal.woff2) format('woff2');}
+@font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/inter-latin-700-normal.woff2) format('woff2');}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/ibm-plex-mono-latin-400-normal.woff2) format('woff2');}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/ibm-plex-mono-latin-500-normal.woff2) format('woff2');}
+</style>
 <style>
 :root{
   /* Interface panels — solid, calm, easy to read. The stripes live in the
@@ -597,6 +602,9 @@ function blobToBase64(blob){
     reader.readAsDataURL(blob);
   });
 }
+// File types safe to open in a tab from a blob: URL (none can run script).
+const SAFE_INLINE_MIME = /^(image\/(png|jpe?g|gif|webp|avif|bmp|heic|heif)|application\/pdf|text\/plain)$/;
+
 function base64ToBlob(base64, mimeType){
   const bytes = atob(base64);
   const arr = new Uint8Array(bytes.length);
@@ -1537,11 +1545,23 @@ function buildAttachmentField(draft){
       const row = el('div', ''); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.gap = '10px';
       const isImg = (draft.attachment.mimeType || '').startsWith('image/');
       row.appendChild(el('div', '', (isImg ? '🖼️ ' : '📎 ') + draft.attachment.name + ' (' + humanFileSize(draft.attachment.size) + ')'));
-      const openBtn = buttonEl('Open', 'btn-text', async () => {
+      // A blob: URL runs with this page's origin, so an HTML or SVG file
+      // opened in a tab could run script here and read every saved key on
+      // this site. Only types that can't run script open in a tab; anything
+      // else downloads instead.
+      const mime = (draft.attachment.mimeType || '').toLowerCase();
+      const opensInline = SAFE_INLINE_MIME.test(mime);
+      const openBtn = buttonEl(opensInline ? 'Open' : 'Download', 'btn-text', async () => {
         const rec2 = await idbGetBlob(draft.attachment.idbKey);
         if (!rec2){ alert('Couldn\'t find this file locally — it may not have finished saving.'); return; }
-        const url = URL.createObjectURL(rec2.blob);
-        window.open(url, '_blank');
+        const url = URL.createObjectURL(new Blob([rec2.blob], { type: opensInline ? mime : 'application/octet-stream' }));
+        if (opensInline){
+          window.open(url, '_blank');
+        } else {
+          const a = document.createElement('a');
+          a.href = url; a.download = draft.attachment.name || 'file';
+          document.body.appendChild(a); a.click(); a.remove();
+        }
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       });
       row.appendChild(openBtn);
@@ -1749,6 +1769,7 @@ function buildRecordFooter(mod, rec, draft){
 let googleRt = { tokenClient: null, accessToken: null, connected: false, initPending: false };
 
 function openConnectionsModal(){
+  preloadGoogleScripts();
   openModal('Settings', (body) => {
     body.appendChild(el('div', 'tpl-group-label', 'Connections'));
     body.appendChild(el('div', 'field-hint',
@@ -1875,6 +1896,30 @@ async function triggerExportDownload(auto){
   showToast(auto ? 'Backup exported automatically.' : 'Backup exported.');
 }
 
+/* Checks a backup's shape before anything is replaced, so a damaged or
+   hand-edited file is refused with a reason instead of being saved and
+   then breaking the app on its next render. */
+function backupProblem(parsed){
+  const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+  const ids = new Set();
+  for (const mod of parsed.modules){
+    if (!isObj(mod) || typeof mod.id !== 'string' || typeof mod.name !== 'string') return 'a module is missing its id or name';
+    if (ids.has(mod.id)) return 'two modules share the id "' + mod.id + '"';
+    ids.add(mod.id);
+    if (!SHAPES[mod.shape]) return 'module "' + mod.name + '" has an unknown shape';
+    if (!Array.isArray(mod.fields) || !mod.fields.every(f => isObj(f) && typeof f.id === 'string' && typeof f.label === 'string' && typeof f.type === 'string'))
+      return 'module "' + mod.name + '" has a damaged field list';
+    const recs = parsed.records[mod.id];
+    if (recs === undefined){ parsed.records[mod.id] = []; continue; }
+    if (!Array.isArray(recs)) return 'records for "' + mod.name + '" aren\'t a list';
+    for (const rec of recs){
+      if (!isObj(rec) || typeof rec.id !== 'string' || !isObj(rec.fields)) return 'a record in "' + mod.name + '" is damaged';
+      if (rec.attachment !== undefined && rec.attachment !== null && !isObj(rec.attachment)) return 'a file in "' + mod.name + '" is damaged';
+    }
+  }
+  return null;
+}
+
 function openImportPicker(onDone){
   const input = document.createElement('input');
   input.type = 'file'; input.accept = 'application/json,.json';
@@ -1884,7 +1929,9 @@ function openImportPicker(onDone){
     try {
       const text = await file.text();
       parsed = JSON.parse(text);
-      if (!parsed || !Array.isArray(parsed.modules) || typeof parsed.records !== 'object') throw new Error('not a Note Goat backup file');
+      if (!parsed || !Array.isArray(parsed.modules) || !parsed.records || typeof parsed.records !== 'object') throw new Error('not a Note Goat backup file');
+      const problem = backupProblem(parsed);
+      if (problem) throw new Error(problem);
     } catch(e){
       alert('Couldn\'t read that file as a Note Goat backup (' + e.message + ').');
       return;
@@ -1940,21 +1987,43 @@ function showToast(text){
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 250); }, 3000);
 }
 
+/* Google's sign-in and API scripts load only when Google is actually
+   needed — Connections or a module's Sync window — never on page open, so
+   using the app without sync contacts no Google site. Opening either window
+   starts the load early, so the sign-in popup isn't delayed (and blocked)
+   by a script download after the click. */
+const GOOGLE_SCRIPTS = ['https://accounts.google.com/gsi/client', 'https://apis.google.com/js/api.js'];
+const googleScriptLoads = {};
+function loadGoogleScripts(){
+  return Promise.all(GOOGLE_SCRIPTS.map(src => {
+    // One load per script; a failed one is forgotten so a later try retries
+    // only that script, never re-adding one that already loaded.
+    if (!googleScriptLoads[src]) googleScriptLoads[src] = new Promise((resolve, reject) => {
+      const tag = document.createElement('script');
+      tag.src = src; tag.async = true;
+      tag.onload = resolve;
+      tag.onerror = () => { tag.remove(); delete googleScriptLoads[src]; reject(new Error('Could not load ' + src)); };
+      document.head.appendChild(tag);
+    });
+    return googleScriptLoads[src];
+  }));
+}
+function preloadGoogleScripts(){
+  if (state.settings.googleClientId) loadGoogleScripts().catch(() => {});
+}
+
 function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
   _attempt = _attempt || 0;
   if (!state.settings.googleClientId || !state.settings.googleApiKey){
     if (onFailed) onFailed('Google isn\'t configured — add a Client ID and API key under Connections first.');
     return;
   }
-  if (typeof gapi === 'undefined' || typeof google === 'undefined'){
-    // Google's own scripts may still be loading — retry briefly, but give up
-    // and report failure rather than looping forever if they never show up
-    // (offline, blocked, or the scripts genuinely failed to load).
-    if (_attempt >= 10){
-      if (onFailed) onFailed('Couldn\'t reach Google\'s sign-in — check your connection and try again.');
-      return;
-    }
-    setTimeout(() => tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt + 1), 500);
+  if (typeof gapi === 'undefined' || typeof google === 'undefined' || !google.accounts){
+    // Load Google's scripts on first use, then try once more. Report failure
+    // (offline, blocked) rather than retrying forever.
+    const fail = () => { if (onFailed) onFailed('Couldn\'t reach Google\'s sign-in — check your connection and try again.'); };
+    if (_attempt >= 1){ fail(); return; }
+    loadGoogleScripts().then(() => tryInitGoogle(promptSignIn, onConnected, onFailed, 1), fail);
     return;
   }
   if (googleRt.tokenClient){
@@ -1979,7 +2048,9 @@ function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
     }
     googleRt.tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: state.settings.googleClientId,
-      scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/calendar.events',
+      // drive.file: only files this app creates (its folder, Sheet, Docs) —
+      // not the rest of your Drive. Sheets and Docs APIs accept it for those files.
+      scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
       callback: (resp) => {
         if (resp.access_token){
           googleRt.accessToken = resp.access_token;
@@ -2042,6 +2113,7 @@ const SYNC_REFUSE_MESSAGES = {
 };
 
 function openSyncModal(mod){
+  preloadGoogleScripts();
   openModal('Sync — ' + mod.name, (body) => {
     const statusBox = el('div', ''); statusBox.id = 'syncStatusBox';
     Object.keys(SYNC_TARGET_LABELS).forEach(target => {
@@ -2425,7 +2497,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         <p class="sec-num">06</p>
         <h2>File / photo modules</h2>
         <p>A module can have the <b>File / photo</b> shape — one uploaded file or photo per record, for things you want to keep, like a scanned insurance card or a piece of referral paperwork. Every record of this shape has a built-in upload field, the same way every record has a built-in Notes field.</p>
-        <p>Files are stored on this device, in your browser's local file storage (IndexedDB) — never uploaded to Google Drive or anywhere else. Open a record to view or download its file, or remove it.</p>
+        <p>Files are stored on this device, in your browser's local file storage (IndexedDB) — never uploaded to Google Drive or anywhere else. Open a record to view or download its file, or remove it. Photos, PDFs and plain text open in a new tab; any other kind of file downloads instead, so a file can never run as part of this app.</p>
         <div class="note">This is a completely separate feature from Quick Capture's photo input (below). Quick Capture's photo is used once, to help AI write a clean note, and then discarded — nothing about it is kept. A File / photo module record keeps the actual file, on purpose, with no AI involved at all.</div>
       </section>
 
@@ -2467,7 +2539,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
       <section id="privacy">
         <p class="sec-num">11</p>
         <h2>Data &amp; privacy</h2>
-        <p>Everything lives in this browser: module and record data in <code>localStorage</code>, file/photo bytes in IndexedDB. No account, no server of ours. The only network calls this app makes are the ones you trigger — an Anthropic call for AI capture or module setup, a Google call when you click Sync — using the keys you supplied.</p>
+        <p>Everything lives in this browser: module and record data in <code>localStorage</code>, file/photo bytes in IndexedDB. No account, no server of ours. The only network calls this app makes are the ones you trigger — an Anthropic call for AI capture or module setup, a Google call when you click Sync — using the keys you supplied. Fonts are built in, and Google's sign-in scripts load only when you open Connections or a module's Sync window.</p>
       </section>
 
       <section id="phone">

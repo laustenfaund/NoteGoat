@@ -81,6 +81,9 @@ Same pattern as the rest of the family: everything lives in this browser's
 calls are the direct ones you trigger yourself — an Anthropic API call for
 AI capture/module setup, or a Google API call when you click Sync — using
 keys you supply under Connections. Nothing routes through a server of ours.
+Fonts ship with the app (`fonts/`), and Google's sign-in scripts load only
+when you open Connections or a module's Sync window — opening and using the
+app without sync contacts no outside site.
 
 ## Usage
 
