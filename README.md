@@ -15,9 +15,9 @@ feature.
 
 ## What's built
 
-- **Modules** — pick a pre-made template from the **Library** (a few generic
-  starters, plus a first Medical pack: Doctors, Appointments, Referrals,
-  Medications, Notes to Bring), describe what you need and let **AI propose
+- **Modules** — pick a pre-made template from the **Library** (generic
+  starters: Checklist, Notes, Next Steps, Unanswered Questions, Files &
+  Photos), describe what you need and let **AI propose
   one** (fields, and links to what you already have — reviewed and editable
   before anything is created), or build one yourself field by field
   ("Advanced," tucked below the AI option). Name it yourself; it joins the
