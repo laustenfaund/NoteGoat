@@ -40,6 +40,9 @@ feature.
   popup reminder to every event by default (toggleable per module), and a
   dated module can add an optional Time field so a record syncs as a real
   timed event instead of all-day.
+  Any module with a Date field can go to Calendar, whatever its shape, and
+  does so automatically when a record is added, changed or deleted —
+  queued while Google isn't connected, sent on the next Connect.
 - **AI capture** — Quick Capture on the home page takes typed text and/or a
   photo, and an "AI clean up" pass turns it into one organized note for you
   to review before saving. Uses your own Anthropic key (Connections), same

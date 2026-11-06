@@ -456,6 +456,12 @@ const SYNC_WARN_MESSAGES = {
   'checklist|sheets':'This will flatten checked/unchecked state into plain text columns. Sync anyway?',
   'event|sheets':    'This will sync as a flat log of appointments, not a live calendar. Sync anyway?',
 };
+// Calendar goes by content, not shape: any module with a Date field can
+// put its records on the calendar.
+function syncRule(mod, target){
+  if (target === 'calendar') return dateField(mod) ? 'ok' : 'refuse';
+  return SYNC_RULES[mod.shape][target];
+}
 const SYNC_TARGET_LABELS = { sheets:'Google Sheets', docx:'Google Docs', calendar:'Google Calendar' };
 
 /* Calendar reminder defaults, in minutes before the event start. An
@@ -629,6 +635,11 @@ function recordTitle(mod, rec){
 }
 function dateField(mod){ return mod.fields.find(f => f.type === 'date') || null; }
 function timeField(mod){ return mod.fields.find(f => f.type === 'time') || null; }
+// "YYYY-MM-DD" + optional "HH:MM" → one sortable key.
+function dateTimeKey(mod, rec){
+  const df = dateField(mod), tf = timeField(mod);
+  return (df ? rec.fields[df.id] || '' : '') + 'T' + (tf ? rec.fields[tf.id] || '' : '');
+}
 
 /* ---------- Links & backlinks ----------
    A link field's value is a record id (link-one) or array of record ids
@@ -726,12 +737,16 @@ function renderHome(){
   const sub = el('div', 'page-sub', 'What’s pending, at a glance.');
   mainArea.appendChild(title); mainArea.appendChild(sub);
 
+  const pending = el('div', 'shape-note'); pending.id = 'calendarPendingNote'; pending.style.display = 'none';
+  mainArea.appendChild(pending);
+
   const cards = el('div', 'cards');
   cards.appendChild(renderQuickCaptureCard());
   cards.appendChild(renderComingUpCard());
   cards.appendChild(renderNextStepsCard());
   cards.appendChild(renderUnansweredCard());
   mainArea.appendChild(cards);
+  updateCalendarPendingNote();
 
   const roadmap = el('div', 'roadmap-note',
     'Add your access passcode and Google keys under Settings to light up AI capture, AI-assisted module setup, and Sheets/Docs/Calendar sync. Click Manual for a full walkthrough of every feature.');
@@ -850,24 +865,27 @@ function collapsibleCard(key, title, countText, previewText, bodyRenderer){
 }
 
 function renderComingUpCard(){
+  // Every module with a Date field, whatever its shape.
   const items = [];
-  state.modules.filter(m => m.shape === 'event').forEach(mod => {
+  state.modules.forEach(mod => {
     const df = dateField(mod);
     if (!df) return;
+    const tf = timeField(mod);
     moduleRecords(mod.id).forEach(rec => {
       const raw = rec.fields[df.id];
       if (!raw) return;
-      items.push({ mod, rec, date: raw });
+      const time = tf ? rec.fields[tf.id] || '' : '';
+      items.push({ mod, rec, date: raw, key: dateTimeKey(mod, rec), when: formatDate(raw) + (time ? ', ' + formatTime(time) : '') });
     });
   });
-  const today = new Date().toISOString().slice(0,10);
-  const upcoming = items.filter(i => i.date >= today).sort((a,b) => a.date < b.date ? -1 : 1);
+  const today = localISODate(new Date());
+  const upcoming = items.filter(i => i.date >= today).sort((a,b) => a.key < b.key ? -1 : 1);
   const soonest = upcoming[0];
-  const preview = soonest ? ('Next: ' + recordTitle(soonest.mod, soonest.rec) + ', ' + formatDate(soonest.date) +
+  const preview = soonest ? ('Next: ' + recordTitle(soonest.mod, soonest.rec) + ', ' + soonest.when +
     (upcoming.length > 1 ? ' — ' + (upcoming.length - 1) + ' more' : '')) : 'Nothing scheduled';
   return collapsibleCard('coming', 'Coming up', String(upcoming.length), preview, (body) => {
     if (!upcoming.length){ body.appendChild(el('div','empty','Nothing scheduled yet.')); return; }
-    upcoming.forEach(i => body.appendChild(itemRow(i.mod, i.rec, formatDate(i.date))));
+    upcoming.forEach(i => body.appendChild(itemRow(i.mod, i.rec, i.when)));
   });
 }
 
@@ -1046,8 +1064,7 @@ function renderNotesView(mod, records){
 function renderTableView(mod, records, isEvent){
   let recs = records.slice();
   if (isEvent){
-    const df = dateField(mod);
-    if (df) recs.sort((a,b) => (a.fields[df.id]||'') < (b.fields[df.id]||'') ? -1 : 1);
+    if (dateField(mod)) recs.sort((a,b) => dateTimeKey(mod, a) < dateTimeKey(mod, b) ? -1 : 1);
   }
   const table = document.createElement('table');
   table.className = 'record-table';
@@ -1067,6 +1084,8 @@ function renderTableView(mod, records, isEvent){
       } else {
         let v = rec.fields[f.id];
         if (f.type === 'date' && v) v = formatDate(v);
+        else if (f.type === 'time' && v) v = formatTime(v);
+        else if (f.type === 'checkbox') v = v ? '✓' : '';
         td.textContent = v || '—';
       }
       tr.appendChild(td);
@@ -1425,8 +1444,8 @@ function openSchemaModal(mod, prefill){
           const v = r.fields[f.id];
           if (v === undefined || v === '' || v === null) return;
           if (newType === 'number' && isNaN(Number(v))) badValues.push({r, v});
-          if (newType === 'date' && isNaN(Date.parse(v))) badValues.push({r, v});
-          if (newType === 'time' && !/^\d{2}:\d{2}$/.test(v)) badValues.push({r, v});
+          if (newType === 'date' && !parseDateText(v)) badValues.push({r, v});
+          if (newType === 'time' && !parseTimeText(v)) badValues.push({r, v});
         });
       }
       if (willBeLink && !wasLink){
@@ -1493,8 +1512,10 @@ function buildSchemaFooter(mod, isEdit){
       if (mod.shape === 'files'){
         for (const r of recs) if (r.attachment) await idbDeleteBlob(r.attachment.idbKey).catch(() => {});
       }
+      const hadCalendar = !!dateField(mod) && mod.calendarAuto !== false;
       state.modules = state.modules.filter(m => m.id !== mod.id);
       delete state.records[mod.id];
+      if (hadCalendar) queueCalendarSync({ id: mod.id, deleted: true });
       closeModal();
       state.view = {type:'home'};
       render();
@@ -1505,9 +1526,23 @@ function buildSchemaFooter(mod, isEdit){
     const draft = document.querySelector('.modal-body')._getDraft();
     if (!draft.name){ alert('Give the module a name.'); return; }
     if (isEdit){
+      // A field that just became Date or Time: rewrite its values in the
+      // standard form ("Nov 20" → 2026-11-20, "2:30 pm" → 14:30) so the
+      // date/time pickers, Coming up and Calendar can all read them.
+      const oldTypes = {}; mod.fields.forEach(f => oldTypes[f.id] = f.type);
+      draft.fields.forEach(f => {
+        if (oldTypes[f.id] === f.type || (f.type !== 'date' && f.type !== 'time')) return;
+        moduleRecords(mod.id).forEach(r => {
+          const v = r.fields[f.id];
+          if (v === undefined || v === '' || v === null) return;
+          const norm = f.type === 'date' ? parseDateText(v) : parseTimeText(v);
+          if (norm) r.fields[f.id] = norm;
+        });
+      });
       mod.name = draft.name;
       mod.fields = draft.fields;
       closeModal(); render();
+      queueCalendarSync(mod);
     } else {
       const newMod = { id: uid('m'), name: draft.name, shape: draft.shape, role: null, fields: draft.fields, createdAt: Date.now() };
       state.modules.push(newMod);
@@ -1725,6 +1760,7 @@ function buildRecordFooter(mod, rec, draft){
       if (rec.attachment) await idbDeleteBlob(rec.attachment.idbKey).catch(() => {});
       state.records[mod.id] = moduleRecords(mod.id).filter(r => r.id !== rec.id);
       closeModal(); render();
+      queueCalendarSync(mod);
     }));
   }
   buttons.push(buttonEl('Cancel', 'btn-secondary', closeModal));
@@ -1748,6 +1784,7 @@ function buildRecordFooter(mod, rec, draft){
         state.records[mod.id].push({ id: uid('r'), fields: draft.fields, notes: draft.notes, attachment, createdAt: Date.now(), updatedAt: Date.now() });
       }
       closeModal(); render();
+      queueCalendarSync(mod);
     } catch(err){
       saveBtn.disabled = false;
       alert('Couldn\'t save the file (' + err.message + '). Everything else is unsaved too — try again.');
@@ -2059,6 +2096,7 @@ function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
           googleRt.connected = true;
           gapi.client.setToken({ access_token: resp.access_token });
           if (onConnected) onConnected();
+          flushCalendarQueue();
         }
       },
       error_callback: (err) => {
@@ -2121,13 +2159,15 @@ function openSyncModal(mod){
   openModal('Sync — ' + mod.name, (body) => {
     const statusBox = el('div', ''); statusBox.id = 'syncStatusBox';
     Object.keys(SYNC_TARGET_LABELS).forEach(target => {
-      const rule = SYNC_RULES[mod.shape][target];
+      const rule = syncRule(mod, target);
       const row = el('div', 'schema-field-row');
       row.style.alignItems = 'flex-start';
       const info = el('div', ''); info.style.flex = '1';
       info.appendChild(el('div', '', SYNC_TARGET_LABELS[target]));
       if (rule === 'refuse'){
-        info.appendChild(el('div', 'field-hint', SYNC_REFUSE_MESSAGES[mod.shape + '|' + target]));
+        info.appendChild(el('div', 'field-hint', target === 'calendar'
+          ? 'Not offered — this module has no Date field. Add one with its ⚙ to put its records on your calendar.'
+          : SYNC_REFUSE_MESSAGES[mod.shape + '|' + target]));
       } else if (rule === 'warn'){
         info.appendChild(el('div', 'field-hint', SYNC_WARN_MESSAGES[mod.shape + '|' + target]));
       } else {
@@ -2143,6 +2183,15 @@ function openSyncModal(mod){
         remLabel.appendChild(remCb);
         remLabel.appendChild(document.createTextNode('Reminder — 9am the day before (all-day events) or 24h before (timed events)'));
         info.appendChild(remLabel);
+        const autoLabel = document.createElement('label');
+        autoLabel.style.display = 'flex'; autoLabel.style.alignItems = 'center'; autoLabel.style.gap = '6px';
+        autoLabel.style.marginTop = '6px'; autoLabel.style.fontSize = '13.5px';
+        const autoCb = document.createElement('input'); autoCb.type = 'checkbox'; autoCb.style.width = 'auto';
+        autoCb.checked = mod.calendarAuto !== false;
+        autoCb.onchange = () => { mod.calendarAuto = autoCb.checked; saveState(); if (autoCb.checked) queueCalendarSync(mod); };
+        autoLabel.appendChild(autoCb);
+        autoLabel.appendChild(document.createTextNode('Sync automatically — whenever a record is added, changed or deleted'));
+        info.appendChild(autoLabel);
       }
       row.appendChild(info);
       const btn = document.createElement('button');
@@ -2199,6 +2248,7 @@ async function runSync(mod, target, statusBox){
 function fieldValueForExport(f, rec){
   if (f.type === 'link-one' || f.type === 'link-many') return linkFieldDisplay(f, rec);
   if (f.type === 'date') return rec.fields[f.id] ? formatDate(rec.fields[f.id]) : '';
+  if (f.type === 'time') return rec.fields[f.id] ? formatTime(rec.fields[f.id]) : '';
   if (f.type === 'checkbox') return rec.fields[f.id] ? 'Yes' : 'No';
   return rec.fields[f.id] || '';
 }
@@ -2342,15 +2392,82 @@ async function syncModuleToCalendar(mod){
     keep.add(rec.calendarEventId);
   }
   // Remove events this module made for records that no longer exist here.
-  const stale = [];
+  for (const id of await listModuleEventIds(mod.id)) if (!keep.has(id)) await deleteCalendarEvent(id);
+}
+
+async function listModuleEventIds(moduleId){
+  const ids = [];
   let pageToken;
   do {
     const res = await gapi.client.calendar.events.list({ calendarId: 'primary',
-      privateExtendedProperty: 'noteGoatModule=' + mod.id, maxResults: 250, pageToken });
-    (res.result.items || []).forEach(ev => { if (!keep.has(ev.id)) stale.push(ev.id); });
+      privateExtendedProperty: 'noteGoatModule=' + moduleId, maxResults: 250, pageToken });
+    (res.result.items || []).forEach(ev => ids.push(ev.id));
     pageToken = res.result.nextPageToken;
   } while (pageToken);
-  for (const id of stale) await deleteCalendarEvent(id);
+  return ids;
+}
+
+/* ---------- Automatic Calendar sync ----------
+   Adding, changing or deleting a record in a module with a Date field
+   queues that module; the queue is pushed to Calendar whenever Google is
+   connected. Google sign-in only lasts for this session (by design), so
+   changes made before connecting wait in the queue — kept in this
+   browser across reloads — and go out on the next Connect. */
+function queueCalendarSync(mod){
+  if (!state.settings.googleClientId) return; // Google not set up: nothing to sync to
+  if (!mod.deleted && (!dateField(mod) || mod.calendarAuto === false)) return;
+  const q = state.settings.calendarPending || [];
+  if (!q.includes(mod.id)) q.push(mod.id);
+  state.settings.calendarPending = q;
+  saveState();
+  flushCalendarQueue();
+}
+let calendarFlushRunning = false, calendarFlushAgain = false;
+async function flushCalendarQueue(){
+  if (!googleRt.connected || typeof gapi === 'undefined'){ updateCalendarPendingNote(); return; }
+  if (calendarFlushRunning){ calendarFlushAgain = true; return; }
+  calendarFlushRunning = true;
+  updateCalendarPendingNote();
+  try {
+    do {
+      calendarFlushAgain = false;
+      for (const modId of (state.settings.calendarPending || []).slice()){
+        // Off the queue before syncing, so a change made mid-sync re-queues it.
+        state.settings.calendarPending = state.settings.calendarPending.filter(id => id !== modId);
+        const mod = getModule(modId);
+        try {
+          if (mod && dateField(mod)) await syncModuleToCalendar(mod);
+          else for (const id of await listModuleEventIds(modId)) await deleteCalendarEvent(id); // module deleted
+        } catch(e){
+          if (!state.settings.calendarPending.includes(modId)) state.settings.calendarPending.push(modId);
+          const status = e && (e.status || (e.result && e.result.error && e.result.error.code));
+          if (status === 401) googleRt.connected = false; // sign-in expired
+          console.warn('Calendar auto-sync failed', e);
+          saveState();
+          showToast(status === 401 ? 'Google sign-in expired — Calendar changes are waiting.' : 'Calendar sync didn\'t go through — it will retry.');
+          return;
+        }
+        saveState();
+      }
+    } while (calendarFlushAgain);
+  } finally {
+    calendarFlushRunning = false;
+    updateCalendarPendingNote();
+  }
+}
+function updateCalendarPendingNote(){
+  const box = document.getElementById('calendarPendingNote');
+  if (!box) return;
+  box.innerHTML = '';
+  const n = (state.settings.calendarPending || []).length;
+  if (!n || !state.settings.googleClientId){ box.style.display = 'none'; return; }
+  box.style.display = '';
+  if (calendarFlushRunning){ box.appendChild(el('span', '', 'Syncing to Google Calendar…')); return; }
+  box.appendChild(el('span', '', 'Calendar: changes in ' + n + ' module' + (n === 1 ? '' : 's') + ' waiting. '));
+  box.appendChild(buttonEl('Connect Google', 'btn-secondary', () => {
+    box.firstChild.textContent = 'Connecting… ';
+    tryInitGoogle(true, () => {}, (msg) => { box.firstChild.textContent = msg + ' '; });
+  }));
 }
 
 function isGoneError(e){
@@ -2387,6 +2504,37 @@ function formatDate(iso){
   if (isNaN(d)) return iso;
   return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
 }
+// "14:30" → "2:30 PM" (or the browser's own clock style).
+function formatTime(hhmm){
+  const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || '');
+  if (!m) return hhmm || '';
+  return new Date(2000, 0, 1, +m[1], +m[2]).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+}
+function localISODate(d){
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+// Free-typed text → "YYYY-MM-DD" / "HH:MM", or null if it can't be read.
+// Used when a text field becomes a Date or Time field.
+function parseDateText(v){
+  v = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const d = new Date(v);
+  if (isNaN(d)) return null;
+  if (!/\d{4}/.test(v)) d.setFullYear(new Date().getFullYear()); // "Nov 20" → this year, not 2001
+  return localISODate(d);
+}
+function parseTimeText(v){
+  const m = /^\s*(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\s*$/i.exec(String(v));
+  if (!m) return null;
+  let h = +m[1]; const min = m[2] ? +m[2] : 0; const ap = (m[3] || '').toLowerCase().replace(/\./g, '');
+  if (!m[2] && !ap) return null;            // a bare "9" is too ambiguous
+  if (ap === 'pm' && h < 12) h += 12;
+  if (ap === 'am' && h === 12) h = 0;
+  if (h > 23 || min > 59) return null;
+  return String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0');
+}
+
 function formatDateTime(ts){
   const d = new Date(ts);
   return d.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
@@ -2493,7 +2641,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
       <section id="home">
         <p class="sec-num">01</p>
         <h2>The Home page</h2>
-        <p>Four cards, deliberately not a dashboard trying to show everything: <b>Quick capture</b> (see below), and three collapsed cards — <b>Coming up</b> (records in your Dated / scheduled modules, from today on, soonest first), <b>Next steps</b> (unticked items from modules made with the Next Steps template — tick them done right on the card), and <b>Unanswered questions</b> (open items from modules made with the Unanswered Questions template). Click a card's header to expand it into the full list; click a row's title to open that record.</p>
+        <p>Four cards, deliberately not a dashboard trying to show everything: <b>Quick capture</b> (see below), and three collapsed cards — <b>Coming up</b> (records with a date, in any module that has a Date field, from today on, soonest first by date and time), <b>Next steps</b> (unticked items from modules made with the Next Steps template — tick them done right on the card), and <b>Unanswered questions</b> (open items from modules made with the Unanswered Questions template). Click a card's header to expand it into the full list; click a row's title to open that record.</p>
         <p>A bare count is avoided on purpose — you'll always see the soonest item alongside the number, not just a number with no content behind it.</p>
       </section>
 
@@ -2524,6 +2672,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         <ul class="plain">
           <li>Changes apply when you click <b>Save</b>; <b>Cancel</b> discards them.</li>
           <li>Removing a field <i>with data in it</i> asks you to confirm first, naming how many records have data in it.</li>
+          <li>Changing a text field to <b>Date</b> or <b>Time</b> reads what's already typed there — "Nov 20", "12/1/2026", "2:30 pm", "9am" — and rewrites it in standard form when you click Save. A date with no year gets this year.</li>
           <li>A type change that some existing values don't fit (turning a field with "555-CALL" in it into a Number, say) is refused outright, with an error saying how many records don't fit and showing one of the values — never applied halfway. Fix that data first, then change the type.</li>
         </ul>
         <p>A module's <b>shape</b> can't be changed after creation — make a new module if you need a different one.</p>
@@ -2559,12 +2708,14 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         <p>Open a module and click <b>Sync</b> to push it to Google Sheets, Docs, or Calendar — one-way only, on demand. Nothing is ever read back from Google; editing something on the Google side won't reflect back here.</p>
         <p>Which targets are offered depends on the module's shape. A natural fit syncs straight away; a workable-but-lossy fit asks you to confirm first and says what will be lost; a combination that wouldn't make sense shows as <b>Not available</b>, with the reason.</p>
         <ul class="plain">
-          <li><b>Repeating rows</b> — Sheets; Docs asks first; no Calendar.</li>
-          <li><b>Freeform notes</b> — Docs; Sheets asks first; no Calendar.</li>
-          <li><b>Checklist</b> — Sheets asks first; no Docs or Calendar.</li>
-          <li><b>Dated / scheduled</b> — Calendar; Sheets asks first; no Docs.</li>
-          <li><b>File / photo</b> — not synced anywhere; files stay on this device.</li>
+          <li><b>Repeating rows</b> — Sheets; Docs asks first.</li>
+          <li><b>Freeform notes</b> — Docs; Sheets asks first.</li>
+          <li><b>Checklist</b> — Sheets asks first; no Docs.</li>
+          <li><b>Dated / scheduled</b> — Sheets asks first; no Docs.</li>
+          <li><b>File / photo</b> — no Sheets or Docs; files stay on this device.</li>
+          <li><b>Calendar</b> — any module with a <b>Date</b> field, whatever its shape. Add a <b>Time</b> field too for timed events.</li>
         </ul>
+        <p><b>Automatic Calendar sync.</b> In a module with a Date field, adding, changing or deleting a record sends it to Calendar by itself — no need to open Sync. Google sign-in only lasts for the session, so changes made before you connect wait (Home shows "Calendar: changes … waiting" with a <b>Connect Google</b> button) and go out as soon as you connect. Turn it off per module with <b>Sync automatically</b> in that module's Sync window. Deleting a whole module removes its events too.</p>
         <p>Where things land: Sheets sync uses one spreadsheet, <b>Note Goat Sync</b>, with a tab per module, rewritten on every sync; Docs sync makes one document per module, <b>Note Goat — <i>module name</i></b>, also rewritten on every sync. Both go in a <b>Note Goat</b> folder in your Drive. Calendar sync goes to your main calendar: records without a date are skipped, and syncing again updates the events it made before and removes events for records you've since deleted here or whose date you've cleared.</p>
         <p>Needs your own Google Cloud project, connected under Settings. Note Goat can only reach Drive files it created itself, plus your calendar events — a Sheet or Doc made some other way, or with a different Client ID, can't be reached, and syncing to it fails with an error.</p>
         <p>Calendar sync adds a popup reminder to every event it pushes — 9am the day before for an all-day event (a Date field only), or 24 hours before for a timed one (see below). It's on by default; the <b>Reminder</b> checkbox next to Google Calendar in this Sync screen turns it off for this module, remembered from then on.</p>
@@ -2608,7 +2759,8 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
           <li>Nothing here can stop a browser's own "clear site data" from wiping everything — that's a browser boundary, not something any web page can override. Regular Export is the real protection.</li>
           <li>Import replaces everything currently in the app; it doesn't merge two devices' changes together.</li>
           <li>A backup file with lots of large photos in it will itself be large — no compression is attempted.</li>
-          <li>Changes reach Google only when you click Sync — deleting a record here takes it out of Sheets, Docs and Calendar at that module's next sync, not straight away.</li>
+          <li>Sheets and Docs update only when you click Sync. Calendar updates by itself, but only while Google is connected — otherwise changes wait for the next Connect.</li>
+          <li>The first automatic sync of a module puts all its dated records on the calendar, past ones included.</li>
           <li>On another device, Sheets sync starts a new <b>Note Goat Sync</b> spreadsheet — which spreadsheet to use is a Settings item and doesn't travel in a backup.</li>
           <li>AI cleanup quality depends on how legible the input is; a genuinely illegible photo produces a note that says so, not a confident guess.</li>
         </ul>
