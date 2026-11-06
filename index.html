@@ -480,24 +480,11 @@ const STARTER_TEMPLATES = [
     fields:[ {id:'question',label:'Question',type:'text'}, {id:'askedOf',label:'Asked of',type:'text'},
              {id:'status',label:'Status',type:'select',options:['Open','Resolved']} ] },
   { group:'Starters', name:'Files & Photos', shape:'files', fields:[ {id:'title',label:'Title',type:'text'} ] },
+  { group:'Starters', name:'Appointments', shape:'event',
+    fields:[ {id:'title',label:'What',type:'text'}, {id:'date',label:'Date',type:'date'},
+             {id:'time',label:'Time',type:'time'}, {id:'where',label:'Where',type:'text'} ] },
 ];
-const MEDICAL_TEMPLATES = [
-  { group:'Medical', name:'Doctors', shape:'table',
-    fields:[ {id:'name',label:'Name',type:'text'}, {id:'specialty',label:'Specialty / Title',type:'text'},
-             {id:'phone',label:'Phone',type:'text'}, {id:'address',label:'Address',type:'text'} ] },
-  { group:'Medical', name:'Appointments', shape:'event',
-    fields:[ {id:'title',label:'Reason',type:'text'}, {id:'doctor',label:'Doctor',type:'text'},
-             {id:'date',label:'Date',type:'date'}, {id:'time',label:'Time',type:'time'} ] },
-  { group:'Medical', name:'Referrals', shape:'table',
-    fields:[ {id:'toDoctor',label:'Referred to',type:'text'}, {id:'fromDoctor',label:'Referred by',type:'text'},
-             {id:'reason',label:'Reason',type:'text'}, {id:'status',label:'Status',type:'select',options:['Pending','Scheduled','Completed']} ] },
-  { group:'Medical', name:'Medications', shape:'table',
-    fields:[ {id:'name',label:'Medication',type:'text'}, {id:'dosage',label:'Dosage',type:'text'},
-             {id:'prescribedBy',label:'Prescribed by',type:'text'}, {id:'startDate',label:'Start date',type:'date'} ] },
-  { group:'Medical', name:'Notes to Bring', shape:'checklist',
-    fields:[ {id:'item',label:'Item',type:'text'}, {id:'forAppointment',label:'For appointment',type:'text'} ] },
-];
-const ALL_TEMPLATES = STARTER_TEMPLATES.concat(MEDICAL_TEMPLATES);
+const ALL_TEMPLATES = STARTER_TEMPLATES;
 
 function seedState(){
   const s = { modules: [], records: {}, view: {type:'home'},
@@ -1375,8 +1362,9 @@ function openSchemaModal(mod, prefill){
           typeSelect.appendChild(opt);
         });
         typeSelect.onchange = () => {
-          attemptFieldTypeChange(f, typeSelect.value, typeSelect);
-          renderFieldsList();
+          // Re-render only on success: a refusal shows an error box in this
+          // list, and re-rendering would wipe it before anyone saw it.
+          if (attemptFieldTypeChange(f, typeSelect.value, typeSelect)) renderFieldsList();
         };
         row.appendChild(typeSelect);
         const rm = document.createElement('button');
@@ -1441,18 +1429,19 @@ function openSchemaModal(mod, prefill){
       if (badValues.length){
         showFieldTypeError(f, newType, badValues, mod);
         selectEl.value = f.type; // revert visually, edit refused
-        return;
+        return false;
       }
       f.type = newType;
       if (willBeLink && !f.targetModuleId) f.targetModuleId = null;
       if (newType === 'select' && !f.options) f.options = [];
+      return true;
     }
 
     function showFieldTypeError(f, newType, badValues, mod){
       const box = el('div', 'error-box',
-        'Can’t change "' + escapeHtml(f.label) + '" to ' + FIELD_TYPES[newType].label.toLowerCase() + ' — ' +
+        'Can’t change "' + f.label + '" to ' + FIELD_TYPES[newType].label.toLowerCase() + ' — ' +
         badValues.length + ' record' + (badValues.length===1?'':'s') + ' ' + (badValues.length===1?'has':'have') +
-        ' a value that doesn’t fit (e.g. "' + escapeHtml(String(badValues[0].v)) + '"). Fix that data first, or leave the field as it is.');
+        ' a value that doesn’t fit (e.g. "' + String(badValues[0].v) + '"). Fix that data first, or leave the field as it is.');
       fieldsList.appendChild(box);
       setTimeout(() => box.remove(), 6000);
     }
@@ -2185,7 +2174,10 @@ async function runSync(mod, target, statusBox){
     syncStatus(statusBox, 'Synced just now.', false);
   } catch(err){
     console.error('Sync failed', err);
-    syncStatus(statusBox, 'Sync didn\'t go through (' + (err.message || 'unknown error') + '). Nothing was changed here locally.', true);
+    saveState(); // keep ids of anything already pushed, so a retry updates instead of duplicating
+    // Google API errors arrive as { result: { error: { message } } }, not as Error objects.
+    const why = (err && err.result && err.result.error && err.result.error.message) || (err && err.message) || 'unknown error';
+    syncStatus(statusBox, 'Sync didn\'t go through (' + why + '). Nothing was changed here locally.', true);
   }
 }
 
@@ -2228,6 +2220,9 @@ async function syncModuleToSheets(mod){
   }
   const headers = mod.fields.map(f => f.label).concat('Notes');
   const rows = moduleRecords(mod.id).map(rec => mod.fields.map(f => fieldValueForExport(f, rec)).concat(rec.notes || ''));
+  // Clear the tab first so rows for deleted records, and columns for
+  // removed fields, don't linger below or beside the new data.
+  await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId: ssId, range: "'" + tabName + "'", resource: {} });
   await gapi.client.sheets.spreadsheets.values.update({
     spreadsheetId: ssId,
     range: "'" + tabName + "'!A1",
@@ -2276,9 +2271,14 @@ async function syncModuleToCalendar(mod){
   const df = dateField(mod);
   if (!df) throw new Error('this module has no date field');
   const tf = timeField(mod);
+  const keep = new Set();
   for (const rec of moduleRecords(mod.id)){
     const dateVal = rec.fields[df.id];
-    if (!dateVal) continue;
+    if (!dateVal){
+      // Date cleared since the last sync — take its event off the calendar.
+      if (rec.calendarEventId){ await deleteCalendarEvent(rec.calendarEventId); delete rec.calendarEventId; }
+      continue;
+    }
     const timeVal = tf ? rec.fields[tf.id] : '';
     let eventResource;
     if (timeVal){
@@ -2309,13 +2309,42 @@ async function syncModuleToCalendar(mod){
         overrides: [{ method: 'popup', minutes: timeVal ? CALENDAR_REMINDER_MINUTES_TIMED : CALENDAR_REMINDER_MINUTES_ALLDAY }],
       };
     }
+    // Tagged so a later sync can find this module's events, including ones
+    // whose record has since been deleted here.
+    eventResource.extendedProperties = { private: { noteGoatModule: mod.id, noteGoatRecord: rec.id } };
     if (rec.calendarEventId){
-      await gapi.client.calendar.events.update({ calendarId: 'primary', eventId: rec.calendarEventId, resource: eventResource });
-    } else {
+      try {
+        await gapi.client.calendar.events.update({ calendarId: 'primary', eventId: rec.calendarEventId, resource: eventResource });
+      } catch(e){
+        if (!isGoneError(e)) throw e;
+        delete rec.calendarEventId; // deleted on the Google side — make it again
+      }
+    }
+    if (!rec.calendarEventId){
       const res = await gapi.client.calendar.events.insert({ calendarId: 'primary', resource: eventResource });
       rec.calendarEventId = res.result.id;
     }
+    keep.add(rec.calendarEventId);
   }
+  // Remove events this module made for records that no longer exist here.
+  const stale = [];
+  let pageToken;
+  do {
+    const res = await gapi.client.calendar.events.list({ calendarId: 'primary',
+      privateExtendedProperty: 'noteGoatModule=' + mod.id, maxResults: 250, pageToken });
+    (res.result.items || []).forEach(ev => { if (!keep.has(ev.id)) stale.push(ev.id); });
+    pageToken = res.result.nextPageToken;
+  } while (pageToken);
+  for (const id of stale) await deleteCalendarEvent(id);
+}
+
+function isGoneError(e){
+  const status = e && (e.status || (e.result && e.result.error && e.result.error.code));
+  return status === 404 || status === 410;
+}
+async function deleteCalendarEvent(eventId){
+  try { await gapi.client.calendar.events.delete({ calendarId: 'primary', eventId }); }
+  catch(e){ if (!isGoneError(e)) throw e; } // already gone is fine
 }
 
 /* =========================================================
@@ -2418,7 +2447,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
     <div class="stripe"></div>
     <p class="eyebrow">User manual</p>
     <h1>Note Goat</h1>
-    <p class="lede">A single-file, browser-only, domain-agnostic personal organizer — appointments, doctors, medications, tasks, notes, files, or whatever you build a module for.</p>
+    <p class="lede">A single-file, browser-only, domain-agnostic personal organizer — tasks, notes, appointments, files, or whatever you build a module for.</p>
     <div class="factrow">
       <span><b>Runs</b>&nbsp;entirely in your browser</span>
       <span><b>Data</b>&nbsp;stays in this browser (or IndexedDB for files)</span>
@@ -2449,17 +2478,17 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
       <section id="home">
         <p class="sec-num">01</p>
         <h2>The Home page</h2>
-        <p>Four cards, deliberately not a dashboard trying to show everything: <b>Quick capture</b> (see below), and three collapsed cards — <b>Coming up</b> (anything with a date, across every module, soonest first), <b>Next steps</b>, and <b>Unanswered questions</b>. Click a card's header to expand it into the full list; each row opens straight to that record.</p>
+        <p>Four cards, deliberately not a dashboard trying to show everything: <b>Quick capture</b> (see below), and three collapsed cards — <b>Coming up</b> (records in your Dated / scheduled modules, from today on, soonest first), <b>Next steps</b> (unticked items from modules made with the Next Steps template — tick them done right on the card), and <b>Unanswered questions</b> (open items from modules made with the Unanswered Questions template). Click a card's header to expand it into the full list; click a row's title to open that record.</p>
         <p>A bare count is avoided on purpose — you'll always see the soonest item alongside the number, not just a number with no content behind it.</p>
       </section>
 
       <section id="modules">
         <p class="sec-num">02</p>
         <h2>Modules &amp; the Library</h2>
-        <p>A <b>module</b> is a named category with its own fields — Doctors, Medications, whatever you need. Every module has a <b>shape</b> that decides how its records are displayed and which sync targets make sense for it: repeating rows (a table), freeform notes, a checklist, a dated/scheduled thing, or a file/photo.</p>
+        <p>A <b>module</b> is a named category with its own fields — Contacts, Bills, Projects, whatever you need. Every module has a <b>shape</b> that decides how its records are displayed and which sync targets make sense for it: repeating rows (a table), freeform notes, a checklist, a dated/scheduled thing, or a file/photo.</p>
         <p>Open the <b>Library</b> (sidebar) to add one. Three ways in:</p>
         <ol class="steps">
-          <li><b>Pick a template</b> — Starters (generic) or Medical (a first concrete pack: Doctors, Appointments, Referrals, Medications, Notes to Bring). Name it whatever you want; templates are a starting point, not a locked configuration.</li>
+          <li><b>Pick a template</b> — the Starters: Checklist, Notes, Next Steps, Unanswered Questions, Files &amp; Photos, and Appointments (What, Date, Time, Where). Next Steps and Unanswered Questions feed the Home cards of the same name; Appointments feeds Coming up. Name it whatever you want; templates are a starting point, not a locked configuration.</li>
           <li><b>Describe what you need</b> — the prominent option under Custom. Tell the AI what you're trying to track and it proposes a name, shape, fields, and links to modules you already have. Nothing is created yet — you land in the ordinary module editor with that proposal pre-filled, free to change anything, and you still click Create.</li>
           <li><b>Advanced: build it yourself</b> — the small link under the AI option. Pick a shape and add fields one at a time, no AI involved. Same editor either way.</li>
         </ol>
@@ -2476,11 +2505,11 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
       <section id="schema">
         <p class="sec-num">04</p>
         <h2>Editing a module later</h2>
-        <p>Open a module's ⚙ any time to add, rename, retype, or remove fields — even after it already has records in it.</p>
+        <p>Open a module's ⚙ any time to add, rename, retype, or remove fields — even after it already has records in it. Fields can't be reordered; new ones go at the end.</p>
         <ul class="plain">
-          <li>Adding a field, reordering, or a plain rename applies immediately.</li>
-          <li>Deleting a field <i>with data in it</i>, or narrowing its type in a way some existing values don't fit, asks you to confirm first — naming exactly how many records are affected.</li>
-          <li>If a type change genuinely can't apply to existing data (turning a field with "555-CALL-DOC" in it into a Number, say), it's refused outright with an error naming the problem record — never applied halfway.</li>
+          <li>Changes apply when you click <b>Save</b>; <b>Cancel</b> discards them.</li>
+          <li>Removing a field <i>with data in it</i> asks you to confirm first, naming how many records have data in it.</li>
+          <li>A type change that some existing values don't fit (turning a field with "555-CALL" in it into a Number, say) is refused outright, with an error saying how many records don't fit and showing one of the values — never applied halfway. Fix that data first, then change the type.</li>
         </ul>
         <p>A module's <b>shape</b> can't be changed after creation — make a new module if you need a different one.</p>
       </section>
@@ -2489,14 +2518,14 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         <p class="sec-num">05</p>
         <h2>Links between modules</h2>
         <p>A field can be a <b>Link — one record</b> or <b>Link — many records</b>, pointing at records in another module (add one from a module's ⚙, same as any field, then choose which module it links to). You always pick the link yourself from a list — nothing is guessed or inferred from content.</p>
-        <p>Open any record and you'll see two things beyond its own fields: what it links <i>to</i>, and — if anything points at it — a <b>Linked from</b> section showing what links <i>to it</i>. Every row is clickable, so you can hop from a Doctor to an Appointment to that appointment's Notes to Bring and back.</p>
+        <p>Open any record and you'll see two things beyond its own fields: what it links <i>to</i>, and — if anything points at it — a <b>Linked from</b> section showing what links <i>to it</i>. Every row is clickable, so you can hop from one record to the records it's connected to and back.</p>
         <div class="note">Deleting something other records link to warns you first, naming how many. If a link ever goes stale another way, it shows as "linked record no longer exists" rather than silently disappearing.</div>
       </section>
 
       <section id="files">
         <p class="sec-num">06</p>
         <h2>File / photo modules</h2>
-        <p>A module can have the <b>File / photo</b> shape — one uploaded file or photo per record, for things you want to keep, like a scanned insurance card or a piece of referral paperwork. Every record of this shape has a built-in upload field, the same way every record has a built-in Notes field.</p>
+        <p>A module can have the <b>File / photo</b> shape — one uploaded file or photo per record, for things you want to keep, like a scanned card, a receipt, or a document. Every record of this shape has a built-in upload field, the same way every record has a built-in Notes field.</p>
         <p>Files are stored on this device, in your browser's local file storage (IndexedDB) — never uploaded to Google Drive or anywhere else. Open a record to view or download its file, or remove it. Photos, PDFs and plain text open in a new tab; any other kind of file downloads instead, so a file can never run as part of this app.</p>
         <div class="note">This is a completely separate feature from Quick Capture's photo input (below). Quick Capture's photo is used once, to help AI write a clean note, and then discarded — nothing about it is kept. A File / photo module record keeps the actual file, on purpose, with no AI involved at all.</div>
       </section>
@@ -2504,7 +2533,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
       <section id="capture">
         <p class="sec-num">07</p>
         <h2>Quick Capture &amp; AI cleanup</h2>
-        <p>The card at the top of Home. Type or paste a quick note and <b>Save note</b> — it's filed straight into your Personal Notes module, no AI required.</p>
+        <p>The card at the top of Home. Type or paste a quick note and <b>Save note</b> — it's filed straight into your first Notes module (Personal Notes, to start with), no AI required.</p>
         <p>If you'd rather hand it a photo of messy handwritten or typed notes, attach one, then <b>Clean up with AI</b>. It reads the photo (and any typed text alongside it) and rewrites it into one organized note, shown in the box for you to edit — nothing saves until you click Save note. Needs your Anthropic key under Settings; the photo itself is never kept, only the resulting text.</p>
         <p>If a photo is genuinely illegible, the note says so rather than guessing at what it can't read.</p>
       </section>
@@ -2513,7 +2542,16 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         <p class="sec-num">08</p>
         <h2>Sync</h2>
         <p>Open a module and click <b>Sync</b> to push it to Google Sheets, Docs, or Calendar — one-way only, on demand. Nothing is ever read back from Google; editing something on the Google side won't reflect back here.</p>
-        <p>Which targets are offered depends on the module's shape: a natural fit (a table to Sheets, a dated module to Calendar) syncs straight away; a workable-but-lossy fit (a checklist to Sheets, say) asks you to confirm first and says exactly what will be lost; anything that wouldn't make sense at all (files, or anything without a date, to Calendar) isn't offered, with a reason shown. Needs your own Google Cloud project, connected under Settings.</p>
+        <p>Which targets are offered depends on the module's shape. A natural fit syncs straight away; a workable-but-lossy fit asks you to confirm first and says what will be lost; a combination that wouldn't make sense shows as <b>Not available</b>, with the reason.</p>
+        <ul class="plain">
+          <li><b>Repeating rows</b> — Sheets; Docs asks first; no Calendar.</li>
+          <li><b>Freeform notes</b> — Docs; Sheets asks first; no Calendar.</li>
+          <li><b>Checklist</b> — Sheets asks first; no Docs or Calendar.</li>
+          <li><b>Dated / scheduled</b> — Calendar; Sheets asks first; no Docs.</li>
+          <li><b>File / photo</b> — not synced anywhere; files stay on this device.</li>
+        </ul>
+        <p>Where things land: Sheets sync uses one spreadsheet, <b>Note Goat Sync</b>, with a tab per module, rewritten on every sync; Docs sync makes one document per module, <b>Note Goat — <i>module name</i></b>, also rewritten on every sync. Both go in a <b>Note Goat</b> folder in your Drive. Calendar sync goes to your main calendar: records without a date are skipped, and syncing again updates the events it made before and removes events for records you've since deleted here or whose date you've cleared.</p>
+        <p>Needs your own Google Cloud project, connected under Settings. Note Goat can only reach Drive files it created itself, plus your calendar events — a Sheet or Doc made some other way, or with a different Client ID, can't be reached, and syncing to it fails with an error.</p>
         <p>Calendar sync adds a popup reminder to every event it pushes — 9am the day before for an all-day event (a Date field only), or 24 hours before for a timed one (see below). It's on by default; the <b>Reminder</b> checkbox next to Google Calendar in this Sync screen turns it off for this module, remembered from then on.</p>
         <p>A dated/scheduled module can add an optional <b>Time</b> field alongside its Date field. Fill one in on a record and that record syncs as a real 1-hour timed event instead of all-day, in your browser's own timezone; records with no time keep syncing all-day, unchanged.</p>
       </section>
@@ -2521,25 +2559,25 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
       <section id="settings">
         <p class="sec-num">09</p>
         <h2>Settings: keys &amp; connections</h2>
-        <p>The ⚙ Settings button (sidebar) holds two keys, both stored only in this browser and used only for the direct calls this app makes:</p>
+        <p>The ⚙ Settings button (sidebar) holds two connections, both stored only in this browser and used only for the direct calls this app makes:</p>
         <ol class="steps">
           <li><b>Anthropic API key</b> — powers Quick Capture's AI cleanup and AI-assisted module creation.</li>
-          <li><b>Google Client ID + API key</b>, from your own free Google Cloud project — powers Sync. Click Connect / Sign in each session; the sign-in itself doesn't persist across a reload, by design.</li>
+          <li><b>Google Client ID + API key</b>, from your own free Google Cloud project — powers Sync. Click Connect / Sign in each session; the sign-in itself doesn't persist across a reload, by design. Google's own window asks you to approve access the first time.</li>
         </ol>
       </section>
 
       <section id="backup">
         <p class="sec-num">10</p>
         <h2>Backup &amp; transfer</h2>
-        <p>Also under Settings. <b>Export</b> writes one file with everything in the app — every module, every record, every file/photo — except your keys, which never leave this device. Move that file however you'd move any file (AirDrop, email to yourself, a cloud-drive folder) and use <b>Import</b> on the other device to read it back in.</p>
-        <p>Import always asks you to confirm first, naming what it's about to replace — it's a full restore, not a merge, and it's the only way data moves between devices; nothing syncs automatically.</p>
+        <p>Also under Settings. <b>Export</b> writes one file with everything in the app — every module, every record, every file/photo — except what's in Settings (your keys, Google setup and export schedule), which stays on this device. Move that file however you'd move any file (AirDrop, email to yourself, a cloud-drive folder) and use <b>Import</b> on the other device to read it back in.</p>
+        <p>Import always asks you to confirm first, naming what it's about to replace — it's a full restore, not a merge, and it's the only way data moves between devices; nothing syncs automatically. A damaged or hand-edited file is refused with a reason, and nothing is replaced.</p>
         <p>Set Export to <b>Daily</b> or <b>Weekly</b> instead of Manual and the app checks, once, the next time you open it — if it's overdue, it exports quietly with a small confirmation, no prompt. That's not a true background schedule (nothing can run while the app is closed, especially on iPhone) — it's "checked whenever you happen to open it," which works out the same in practice if you use the app regularly.</p>
       </section>
 
       <section id="privacy">
         <p class="sec-num">11</p>
         <h2>Data &amp; privacy</h2>
-        <p>Everything lives in this browser: module and record data in <code>localStorage</code>, file/photo bytes in IndexedDB. No account, no server of ours. The only network calls this app makes are the ones you trigger — an Anthropic call for AI capture or module setup, a Google call when you click Sync — using the keys you supplied. Fonts are built in, and Google's sign-in scripts load only when you open Connections or a module's Sync window.</p>
+        <p>Everything lives in this browser: module and record data in <code>localStorage</code>, file/photo bytes in IndexedDB. No account, no server of ours. The only network calls this app makes are the ones you trigger — an Anthropic call for AI capture or module setup, a Google call when you click Sync — using the keys you supplied. Fonts are built in, and Google's sign-in scripts load only when you open Settings or a module's Sync window.</p>
       </section>
 
       <section id="phone">
@@ -2555,6 +2593,8 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
           <li>Nothing here can stop a browser's own "clear site data" from wiping everything — that's a browser boundary, not something any web page can override. Regular Export is the real protection.</li>
           <li>Import replaces everything currently in the app; it doesn't merge two devices' changes together.</li>
           <li>A backup file with lots of large photos in it will itself be large — no compression is attempted.</li>
+          <li>Changes reach Google only when you click Sync — deleting a record here takes it out of Sheets, Docs and Calendar at that module's next sync, not straight away.</li>
+          <li>On another device, Sheets sync starts a new <b>Note Goat Sync</b> spreadsheet — which spreadsheet to use is a Settings item and doesn't travel in a backup.</li>
           <li>AI cleanup quality depends on how legible the input is; a genuinely illegible photo produces a note that says so, not a confident guess.</li>
         </ul>
       </section>

@@ -274,6 +274,9 @@ several separate draft cards to individually adjudicate.
 
 ## The Medical module pack
 
+> **Removed 2026-11-06.** This pack came from Molly's version and is no
+> longer in the Library. Kept here as design history only.
+
 The first concrete Library pack, built for one real person's actual need
 rather than as a generic proof of the module system:
 
