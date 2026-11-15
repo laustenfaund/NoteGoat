@@ -169,6 +169,15 @@ nav.module-list{flex:1;overflow-y:auto;padding:8px 10px;}
 .item-row .item-meta{font-size:11.5px;color:var(--ink-dim);}
 .item-row .item-title:hover{color:var(--accent-ink);text-decoration:underline;}
 
+/* ---------- Dashboard ---------- */
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px;}
+.dash-grid .card-preview{white-space:normal;}
+.dash-controls{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--ink-dim);}
+.dash-controls label{display:flex;align-items:center;gap:6px;}
+.dash-controls input{width:64px;border:1px solid var(--line-strong);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--ink);}
+.dash-controls input:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
+.dash-group-label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-faint);margin:12px 0 2px;}
+
 /* Quick capture */
 .quick-capture{padding:16px 18px 18px;}
 .quick-capture textarea{
@@ -326,7 +335,7 @@ table.record-table td.actions{white-space:nowrap;width:1%;}
   .brand-inner{flex-direction:row;align-items:center;justify-content:space-between;gap:8px;}
   .brand-sub{margin-top:0;}
   .nav-label{display:none;}
-  .nav-section{padding:4px 0 8px 12px;}
+  .nav-section{padding:4px 0 8px 12px;display:flex;gap:4px;}
   .nav-section .nav-btn{width:auto;white-space:nowrap;}
   nav.module-list{
     display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;padding:4px 12px 8px 6px;
@@ -386,6 +395,7 @@ table.record-table td.actions{white-space:nowrap;width:1%;}
     </div>
     <div class="nav-section">
       <button class="nav-btn" id="homeNavBtn"><span class="dot"></span>Home</button>
+      <button class="nav-btn" id="dashboardNavBtn"><span class="dot"></span>Dashboard</button>
     </div>
     <div class="nav-label">Modules</div>
     <nav class="module-list" id="moduleList"></nav>
@@ -489,7 +499,7 @@ const ALL_TEMPLATES = STARTER_TEMPLATES;
 function seedState(){
   const s = { modules: [], records: {}, view: {type:'home'},
     settings: { anthropicKey:'', proxyPasscode:'', googleClientId:'', googleApiKey:'', spreadsheetId:'',
-      exportSchedule:'manual', lastExportedAt:null } };
+      exportSchedule:'manual', lastExportedAt:null, dashDueDays:14, dashQuietDays:21 } };
   const seedFrom = (name, tplName) => {
     const tpl = STARTER_TEMPLATES.find(t => t.name === tplName);
     const mod = instantiateModule(s, tpl, name);
@@ -521,7 +531,7 @@ function loadState(){
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      const defaults = { anthropicKey:'', proxyPasscode:'', googleClientId:'', googleApiKey:'', spreadsheetId:'', exportSchedule:'manual', lastExportedAt:null };
+      const defaults = { anthropicKey:'', proxyPasscode:'', googleClientId:'', googleApiKey:'', spreadsheetId:'', exportSchedule:'manual', lastExportedAt:null, dashDueDays:14, dashQuietDays:21 };
       s.settings = Object.assign({}, defaults, s.settings || {});
       // This page and the bring-your-own-key page share one origin and one
       // saved state. The passcode used to live in anthropicKey too, so a
@@ -687,12 +697,14 @@ function render(){
   saveState();
   renderSidebar();
   if (state.view.type === 'home') renderHome();
+  else if (state.view.type === 'dashboard') renderDashboard();
   else if (state.view.type === 'module') renderModule(state.view.moduleId);
 }
 
 function renderSidebar(){
   const homeBtn = document.getElementById('homeNavBtn');
   homeBtn.classList.toggle('active', state.view.type === 'home');
+  document.getElementById('dashboardNavBtn').classList.toggle('active', state.view.type === 'dashboard');
 
   moduleListEl.innerHTML = '';
   state.modules.forEach(mod => {
@@ -713,6 +725,7 @@ function renderSidebar(){
 homeNavBtnListener();
 function homeNavBtnListener(){
   document.getElementById('homeNavBtn').onclick = () => { state.view = {type:'home'}; render(); };
+  document.getElementById('dashboardNavBtn').onclick = () => { state.view = {type:'dashboard'}; render(); };
   document.getElementById('openLibraryBtn').onclick = () => openLibraryModal();
   document.getElementById('openConnectionsBtn').onclick = () => openConnectionsModal();
 }
@@ -828,8 +841,9 @@ async function cleanUpCapture(text, photoData){
   return (await callClaude({ system, userContent: content, maxTokens: 800 })).trim();
 }
 
-function collapsibleCard(key, title, countText, previewText, bodyRenderer){
-  const isOpen = cardOpenState[key];
+function collapsibleCard(key, title, countText, previewText, bodyRenderer, openState){
+  const st = openState || cardOpenState;
+  const isOpen = st[key];
   const card = el('div', 'card' + (isOpen ? ' open' : ''));
   const head = el('div', 'card-head');
   const left = el('div', 'card-head-left');
@@ -841,7 +855,7 @@ function collapsibleCard(key, title, countText, previewText, bodyRenderer){
   right.appendChild(el('div', 'card-count', countText));
   right.appendChild(el('div', 'card-chevron', '›'));
   head.appendChild(right);
-  head.onclick = () => { cardOpenState[key] = !cardOpenState[key]; render(); };
+  head.onclick = () => { st[key] = !st[key]; render(); };
   card.appendChild(head);
   const body = el('div', 'card-body');
   bodyRenderer(body);
@@ -920,6 +934,152 @@ function itemRow(mod, rec, metaText){
   mainDiv.appendChild(el('div', 'item-meta', mod.name + (metaText ? ' · ' + metaText : '')));
   row.appendChild(mainDiv);
   return row;
+}
+
+/* ---------- Dashboard ----------
+   One screen across every module. It only reads records — nothing is
+   added to module or record shapes. Which field means what is found by
+   convention (see the Manual and DESIGN.md), never configured:
+   Due date = field id "due", else the module's first Date field.
+   Next step = field id "next" or label "Next step".
+   List = Choice list field with id "list" or label "List".
+   Done = rec.fields.done is true. */
+let dashOpenState = { overdue:true, soon:true, quiet:true, next:true };
+
+function dueFieldOf(mod){ return mod.fields.find(f => f.id === 'due') || dateField(mod); }
+function nextFieldOf(mod){ return mod.fields.find(f => f.id === 'next' || String(f.label || '').trim().toLowerCase() === 'next step') || null; }
+function listFieldOf(mod){ return mod.fields.find(f => f.type === 'select' && (f.id === 'list' || String(f.label || '').trim().toLowerCase() === 'list')) || null; }
+function isDone(rec){ return rec.fields.done === true; }
+// A Choice list with nothing picked shows its first option in the form, so count it as that.
+function listValueOf(mod, rec){
+  const lf = listFieldOf(mod);
+  if (!lf) return null;
+  return rec.fields[lf.id] || (lf.options || [])[0] || null;
+}
+function dueValueOf(mod, rec){
+  const f = dueFieldOf(mod);
+  const v = f ? rec.fields[f.id] : null;
+  return (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
+}
+function nextValueOf(mod, rec){
+  const f = nextFieldOf(mod);
+  const v = f ? String(rec.fields[f.id] == null ? '' : rec.fields[f.id]).trim() : '';
+  if (!v || v === '—' || v.toLowerCase() === 'none set') return null;
+  return v;
+}
+// Local calendar date, not UTC, so "today" matches the person's own day.
+function localIsoDate(d){
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function dashDays(key, fallback){
+  const n = parseInt(state.settings[key], 10);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+function dashRow(mod, rec){
+  const due = dueValueOf(mod, rec), next = nextValueOf(mod, rec);
+  const meta = [];
+  if (due) meta.push('Due ' + formatDate(due));
+  if (next) meta.push('Next: ' + next);
+  return itemRow(mod, rec, meta.join(' · '));
+}
+
+function renderDashboard(){
+  mainArea.innerHTML = '';
+  mainArea.appendChild(el('div', 'page-title', 'Dashboard'));
+  mainArea.appendChild(el('div', 'page-sub', 'Everything across all modules, on one screen.'));
+
+  const dueDays = dashDays('dashDueDays', 14);
+  const quietDays = dashDays('dashQuietDays', 21);
+
+  // Settings for N and M — saved on this device only, like the rest of Settings.
+  const controls = el('div', 'dash-controls');
+  const numInput = (labelText, key, value) => {
+    const lab = el('label', '');
+    lab.appendChild(document.createTextNode(labelText));
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.min = '0'; inp.step = '1'; inp.inputMode = 'numeric'; inp.value = String(value);
+    inp.onchange = () => {
+      const n = parseInt(inp.value, 10);
+      if (Number.isFinite(n) && n >= 0) state.settings[key] = n;
+      render();
+    };
+    lab.appendChild(inp);
+    lab.appendChild(document.createTextNode('days'));
+    return lab;
+  };
+  controls.appendChild(numInput('Due soon: next', 'dashDueDays', dueDays));
+  controls.appendChild(numInput('Gone quiet: no change in', 'dashQuietDays', quietDays));
+  mainArea.appendChild(controls);
+
+  const all = [];
+  state.modules.forEach(mod => moduleRecords(mod.id).forEach(rec => all.push({ mod, rec })));
+
+  // (1) Area cards
+  const grid = el('div', 'dash-grid');
+  state.modules.forEach(mod => {
+    const recs = moduleRecords(mod.id);
+    if (!recs.length) return;
+    const card = el('div', 'card');
+    const head = el('div', 'card-head');
+    const left = el('div', 'card-head-left');
+    const titleRow = el('div', 'card-title');
+    const dot = el('span', 'type-dot', '');
+    dot.style.background = colorForKey(mod.name); dot.style.marginRight = '7px';
+    titleRow.appendChild(dot);
+    titleRow.appendChild(document.createTextNode(mod.name));
+    left.appendChild(titleRow);
+    const lf = listFieldOf(mod);
+    if (lf){
+      const counts = (lf.options || []).map(opt => opt + ' ' + recs.filter(r => listValueOf(mod, r) === opt).length);
+      left.appendChild(el('div', 'card-preview', counts.join(' · ')));
+    }
+    head.appendChild(left);
+    head.appendChild(el('div', 'card-count', String(recs.length)));
+    head.onclick = () => { state.view = {type:'module', moduleId: mod.id}; render(); };
+    card.appendChild(head);
+    grid.appendChild(card);
+  });
+  if (grid.children.length) mainArea.appendChild(grid);
+
+  const today = localIsoDate(new Date());
+  const soonEnd = new Date(); soonEnd.setDate(soonEnd.getDate() + dueDays);
+  const soonLimit = localIsoDate(soonEnd);
+  const quietCutoff = Date.now() - quietDays * 86400000;
+
+  const withDue = all.map(i => Object.assign({ due: dueValueOf(i.mod, i.rec) }, i)).filter(i => i.due && !isDone(i.rec));
+  const overdue = withDue.filter(i => i.due < today).sort((a,b) => a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
+  const soon = withDue.filter(i => i.due >= today && i.due <= soonLimit).sort((a,b) => a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
+  const quiet = all.map(i => Object.assign({ ts: i.rec.updatedAt || i.rec.createdAt || 0 }, i))
+    .filter(i => i.ts && i.ts < quietCutoff && !isDone(i.rec) && listValueOf(i.mod, i.rec) !== 'Unclear')
+    .sort((a,b) => a.ts - b.ts);
+  const nexts = all.filter(i => nextValueOf(i.mod, i.rec));
+
+  const preview = (list, emptyText) => list.length
+    ? recordTitle(list[0].mod, list[0].rec) + (list.length > 1 ? ' — ' + (list.length - 1) + ' more' : '')
+    : emptyText;
+  const section = (key, title, list, emptyText, bodyFn) =>
+    collapsibleCard(key, title, String(list.length), preview(list, emptyText), (body) => {
+      if (!list.length){ body.appendChild(el('div', 'empty', emptyText)); return; }
+      bodyFn(body);
+    }, dashOpenState);
+
+  const cards = el('div', 'cards');
+  cards.appendChild(section('overdue', 'Overdue', overdue, 'Nothing overdue.',
+    body => overdue.forEach(i => body.appendChild(dashRow(i.mod, i.rec)))));
+  cards.appendChild(section('soon', 'Due soon — next ' + dueDays + ' day' + (dueDays === 1 ? '' : 's'), soon, 'Nothing due soon.',
+    body => soon.forEach(i => body.appendChild(dashRow(i.mod, i.rec)))));
+  cards.appendChild(section('quiet', 'Gone quiet — no change in ' + quietDays + ' day' + (quietDays === 1 ? '' : 's'), quiet, 'Nothing has gone quiet.',
+    body => quiet.forEach(i => body.appendChild(dashRow(i.mod, i.rec)))));
+  cards.appendChild(section('next', 'Next steps', nexts, 'No next steps set.', body => {
+    state.modules.forEach(mod => {
+      const rows = nexts.filter(i => i.mod === mod);
+      if (!rows.length) return;
+      body.appendChild(el('div', 'dash-group-label', mod.name));
+      rows.forEach(i => body.appendChild(dashRow(i.mod, i.rec)));
+    });
+  }));
+  mainArea.appendChild(cards);
 }
 
 /* ---------- Module view ---------- */
@@ -2475,6 +2635,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
       <p class="toc-label">Contents</p>
       <ol>
         <li><a href="#home">The Home page</a></li>
+        <li><a href="#dashboard">The Dashboard</a></li>
         <li><a href="#modules">Modules &amp; the Library</a></li>
         <li><a href="#records">Records &amp; notes</a></li>
         <li><a href="#schema">Editing a module later</a></li>
@@ -2495,6 +2656,29 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         <h2>The Home page</h2>
         <p>Four cards, deliberately not a dashboard trying to show everything: <b>Quick capture</b> (see below), and three collapsed cards — <b>Coming up</b> (records in your Dated / scheduled modules, from today on, soonest first), <b>Next steps</b> (unticked items from modules made with the Next Steps template — tick them done right on the card), and <b>Unanswered questions</b> (open items from modules made with the Unanswered Questions template). Click a card's header to expand it into the full list; click a row's title to open that record.</p>
         <p>A bare count is avoided on purpose — you'll always see the soonest item alongside the number, not just a number with no content behind it.</p>
+      </section>
+
+      <section id="dashboard">
+        <p class="sec-num">01b</p>
+        <h2>The Dashboard</h2>
+        <p>One screen across every module. Open it from <b>Dashboard</b> in the sidebar, next to Home. It only reads your records — it never changes them.</p>
+        <ul class="plain">
+          <li><b>Area cards</b> — one per module that has records: its name, how many records, and, if it has a List field, how many are in each choice (e.g. Current / Possibly dropped / Unclear). Tap a card to open that module.</li>
+          <li><b>Overdue</b> — due date before today and not done. Oldest first.</li>
+          <li><b>Due soon</b> — due date from today to <i>N</i> days ahead (14 to start with), not done. Soonest first.</li>
+          <li><b>Gone quiet</b> — not changed in <i>M</i> days (21 to start with). Leaves out done records and records whose List is Unclear. Oldest first.</li>
+          <li><b>Next steps</b> — every record with a Next step filled in, grouped by module. A Next step of "—" or "None set" counts as empty.</li>
+        </ul>
+        <p>Each row shows the record's title, its module, its due date and its next step. Tap the title to open the record. Change <i>N</i> and <i>M</i> at the top of the Dashboard; they're saved on this device only, like Settings, and don't go into a backup.</p>
+        <h3>Which fields the Dashboard reads</h3>
+        <p>It finds fields by name, so any module can take part — you don't set anything up:</p>
+        <ul class="plain">
+          <li><b>Due date</b> — a field with the id <code>due</code>; if there isn't one, the module's first Date field (so Appointments works as-is).</li>
+          <li><b>Next step</b> — a field with the id <code>next</code>, or labelled "Next step" (any capitals).</li>
+          <li><b>List</b> — a Choice list field with the id <code>list</code>, or labelled "List". A record with nothing picked counts as the first choice, the same as the form shows.</li>
+          <li><b>Done</b> — the record's <code>done</code> checkbox is ticked (as in checklist modules).</li>
+        </ul>
+        <p>"Changed" means the last time the record was saved. Only templates set ids like <code>due</code> or <code>done</code>; a field you add yourself gets a random id, so for those the label is what counts — and its Due date is simply the module's first Date field.</p>
       </section>
 
       <section id="modules">
