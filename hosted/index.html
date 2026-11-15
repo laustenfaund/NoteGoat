@@ -169,6 +169,21 @@ nav.module-list{flex:1;overflow-y:auto;padding:8px 10px;}
 .item-row .item-meta{font-size:11.5px;color:var(--ink-dim);}
 .item-row .item-title:hover{color:var(--accent-ink);text-decoration:underline;}
 
+/* ---------- Drive sync bar ---------- */
+.sync-bar{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:9px 14px;margin-bottom:16px;font-size:13px;color:var(--ink-dim);
+}
+.sync-bar:hover{border-color:var(--accent);color:var(--accent-ink);}
+.sync-bar .sync-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--ink-faint);}
+.sync-bar.ok .sync-dot{background:var(--accent);}
+.sync-bar.busy .sync-dot{background:var(--warn);}
+.sync-bar.err{color:var(--danger);}
+.sync-bar.err .sync-dot{background:var(--danger);}
+.sync-bar.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--ink);}
+.sync-bar.warn .sync-dot{background:var(--warn);}
+
 /* ---------- Dashboard ---------- */
 .dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px;}
 .dash-grid .card-preview{white-space:normal;}
@@ -268,7 +283,7 @@ table.record-table td.actions{white-space:nowrap;width:1%;}
 .modal-close{background:none;border:none;font-size:18px;color:var(--ink-faint);line-height:1;}
 .modal-close:hover{color:var(--ink);}
 .modal-body{padding:20px 22px;max-height:64vh;overflow-y:auto;}
-.modal-foot{padding:16px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;}
+.modal-foot{padding:16px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
 
 .field-group{margin-bottom:14px;}
 .field-label{font-size:12px;font-weight:600;color:var(--ink-dim);display:block;margin-bottom:5px;}
@@ -548,6 +563,7 @@ function loadState(){
   return seedState();
 }
 function saveState(){
+  try { noteDataChange(); } catch(e){ console.warn('Could not check for changes', e); }
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
   catch(e){ console.warn('Could not save data', e); }
 }
@@ -699,6 +715,7 @@ function render(){
   if (state.view.type === 'home') renderHome();
   else if (state.view.type === 'dashboard') renderDashboard();
   else if (state.view.type === 'module') renderModule(state.view.moduleId);
+  mainArea.prepend(syncBarEl);
 }
 
 function renderSidebar(){
@@ -950,6 +967,13 @@ function dueFieldOf(mod){ return mod.fields.find(f => f.id === 'due') || dateFie
 function nextFieldOf(mod){ return mod.fields.find(f => f.id === 'next' || String(f.label || '').trim().toLowerCase() === 'next step') || null; }
 function listFieldOf(mod){ return mod.fields.find(f => f.type === 'select' && (f.id === 'list' || String(f.label || '').trim().toLowerCase() === 'list')) || null; }
 function isDone(rec){ return rec.fields.done === true; }
+// Next step set to a placeholder ("—" / "None set"): left out of Gone quiet.
+function nextIsPlaceholder(mod, rec){
+  const f = nextFieldOf(mod);
+  if (!f) return false;
+  const v = String(rec.fields[f.id] == null ? '' : rec.fields[f.id]).trim();
+  return v === '—' || v.toLowerCase() === 'none set';
+}
 // A Choice list with nothing picked shows its first option in the form, so count it as that.
 function listValueOf(mod, rec){
   const lf = listFieldOf(mod);
@@ -1051,7 +1075,7 @@ function renderDashboard(){
   const overdue = withDue.filter(i => i.due < today).sort((a,b) => a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
   const soon = withDue.filter(i => i.due >= today && i.due <= soonLimit).sort((a,b) => a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
   const quiet = all.map(i => Object.assign({ ts: i.rec.updatedAt || i.rec.createdAt || 0 }, i))
-    .filter(i => i.ts && i.ts < quietCutoff && !isDone(i.rec) && listValueOf(i.mod, i.rec) !== 'Unclear')
+    .filter(i => i.ts && i.ts < quietCutoff && !isDone(i.rec) && listValueOf(i.mod, i.rec) !== 'Unclear' && !nextIsPlaceholder(i.mod, i.rec))
     .sort((a,b) => a.ts - b.ts);
   const nexts = all.filter(i => nextValueOf(i.mod, i.rec));
 
@@ -1947,6 +1971,7 @@ function openConnectionsModal(){
 
     body.appendChild(el('div', 'tpl-group-label', 'Google — for Sheets / Docs / Calendar sync'));
     body.appendChild(el('div', 'field-hint', 'Requires your own free Google Cloud project with the Sheets, Drive, Docs, and Calendar APIs enabled, and an OAuth Client ID + API key from it.'));
+    body.appendChild(el('div', 'field-hint', 'Drive sync between devices (the bar at the top of every page) needs only the Client ID, with the Drive API enabled. Use the same Client ID on every device.'));
 
     const cGrp = el('div', 'field-group');
     cGrp.appendChild(el('label', 'field-label', 'OAuth Client ID'));
@@ -2102,6 +2127,18 @@ function openImportPicker(onDone){
       state.modules.length + ' module' + (state.modules.length===1?'':'s') + ' — with what\'s in this file (from ' +
       (parsed.exportedAt ? formatDateTime(parsed.exportedAt) : 'an unknown time') + '). This can\'t be undone. Continue?');
     if (!ok) return;
+    await applyBackupData(parsed);
+    saveState();
+    render();
+    showToast('Import complete.');
+    if (onDone) onDone();
+  };
+  input.click();
+}
+
+/* Puts a parsed, already-checked backup into state, replacing modules and
+   records. Used by Import and by Drive sync. Settings are never touched. */
+async function applyBackupData(parsed){
     // Attachments carry as base64 inside the file; re-store each one into
     // this device's IndexedDB under a fresh key (never trust an imported
     // key to still be free) before dropping the metadata into state.
@@ -2118,12 +2155,6 @@ function openImportPicker(onDone){
     }
     state.modules = parsed.modules;
     state.records = parsed.records;
-    saveState();
-    render();
-    showToast('Import complete.');
-    if (onDone) onDone();
-  };
-  input.click();
 }
 
 /* Checked once at startup: if a schedule is set and enough time has
@@ -2149,11 +2180,11 @@ function showToast(text){
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 250); }, 3000);
 }
 
-/* Google's sign-in and API scripts load only when Google is actually
-   needed — Connections or a module's Sync window — never on page open, so
-   using the app without sync contacts no Google site. Opening either window
-   starts the load early, so the sign-in popup isn't delayed (and blocked)
-   by a script download after the click. */
+/* Google's sign-in and API scripts load only when Google is set up: on
+   page open if a Google Client ID is saved (for the Drive sync bar), or
+   when Connections or a module's Sync window opens. With no Client ID,
+   using the app contacts no Google site. Loading early means the sign-in
+   popup isn't delayed (and blocked) by a script download after the tap. */
 const GOOGLE_SCRIPTS = ['https://accounts.google.com/gsi/client', 'https://apis.google.com/js/api.js'];
 const googleScriptLoads = {};
 function loadGoogleScripts(){
@@ -2173,6 +2204,533 @@ function loadGoogleScripts(){
 function preloadGoogleScripts(){
   if (state.settings.googleClientId) loadGoogleScripts().catch(() => {});
 }
+
+/* =========================================================
+   Drive sync — this device <-> one file in the person's own Drive
+   One file, "Note Goat Sync.json" (tagged appProperties.noteGoatSync=1),
+   in the Note Goat folder (tagged appProperties.noteGoatFolder=1, found by
+   tag anywhere in Drive). It holds exactly what Export produces (modules +
+   records, attachments as base64, never settings). Whole-file only: Drive
+   newer -> load it; this device newer -> save it; both changed since this
+   device's last sync -> the person picks one copy, seeing what differs.
+   Never merged, never overwritten without asking in that case.
+   Every sync first lists all tagged files: more than one, or one that
+   isn't this device's syncFileId, stops and asks which to use.
+   Signing in is one tap per session (Google tokens last about an hour and
+   aren't stored). Uses plain fetch with its own drive.file-only token, so
+   it never mixes with the Sheets/Docs/Calendar connection.
+   Device-only markers in settings: syncFileId, syncRev (the Drive copy's
+   revision marker this device last saw), syncLastHash (this device's data
+   at last sync), syncBase (per-record fingerprints at last sync, for the
+   "what differs" summary), syncDataHash + dataChangedAt (this device's
+   data now), syncLastSyncedAt.
+   ========================================================= */
+const SYNC_FILE_NAME = 'Note Goat Sync.json';
+const SYNC_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const SYNC_DEBOUNCE_MS = 4000;
+const SYNC_LARGE_BYTES = 10 * 1024 * 1024;
+const SYNC_SIMPLE_MAX = 5 * 1024 * 1024;
+const SYNC_KEEPALIVE_MAX = 60 * 1024; // browsers cap keepalive request bodies at 64 KB
+const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
+const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
+const DRIVE_META = 'id,name,modifiedTime,trashed,size,appProperties';
+const NG_FOLDER_Q = "appProperties has { key='noteGoatFolder' and value='1' } and mimeType='application/vnd.google-apps.folder' and trashed=false";
+const syncRt = { token:null, expiryTimer:null, timer:null, busy:false, conflict:null, copies:null,
+  kind:'', text:'Tap to sync', reason:'', sizeNote:'' };
+
+const syncBarEl = document.createElement('button');
+syncBarEl.type = 'button';
+syncBarEl.onclick = () => onSyncBarTap();
+// kind: '' (idle), 'ok', 'busy', 'err'. reason: short words kept when the
+// bar switches to the unsynced-changes warning.
+function setSyncStatus(kind, text, reason){ syncRt.kind = kind; syncRt.text = text; syncRt.reason = reason || ''; paintSyncBar(); }
+function paintSyncBar(){
+  let kind = syncRt.kind, text = syncRt.text;
+  if (!syncRt.conflict && !syncRt.copies && kind !== 'busy' && kind !== 'ok' && hasUnsyncedChanges()){
+    if (kind === 'err') text += ' Unsynced changes on this device.';
+    else { kind = 'warn'; text = 'Unsynced changes on this device. Tap to sync' + (syncRt.reason ? ' · ' + syncRt.reason : ''); }
+  }
+  syncBarEl.className = 'sync-bar' + (kind ? ' ' + kind : '');
+  syncBarEl.innerHTML = '';
+  syncBarEl.appendChild(el('span', 'sync-dot', ''));
+  syncBarEl.appendChild(el('span', '', text + (syncRt.sizeNote ? ' · ' + syncRt.sizeNote : '')));
+}
+
+function strHash(str){
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return str.length.toString(36) + '.' + h.toString(36);
+}
+// Cheap fingerprint of modules + records, to tell whether this device's data changed.
+function dataHash(){ return strHash(JSON.stringify([state.modules, state.records])); }
+function noteDataChange(){
+  const h = dataHash();
+  if (h === state.settings.syncDataHash) return;
+  state.settings.syncDataHash = h;
+  state.settings.dataChangedAt = Date.now();
+  if (syncRt.token) scheduleDriveSave(); else paintSyncBar();
+}
+function localChangedSinceSync(){ return state.settings.syncDataHash !== state.settings.syncLastHash; }
+// Changes this device has that aren't in Drive yet (only once it has synced at least once).
+function hasUnsyncedChanges(){ return !!state.settings.syncFileId && localChangedSinceSync(); }
+function localIsEmpty(){ return state.modules.every(m => !moduleRecords(m.id).length); }
+function remoteRev(meta){ return (meta && meta.appProperties && meta.appProperties.noteGoatRev) || null; }
+function timeOnly(ts){ return new Date(ts).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }); }
+function sizeNoteFor(bytes){
+  return bytes > SYNC_LARGE_BYTES ? ('sync file is ' + humanFileSize(bytes) + ', which is large — syncing will be slow (photos are the usual cause)') : '';
+}
+
+/* Per-record fingerprints, for "what differs". An attachment counts by its
+   name/type/size only: its IndexedDB key differs per device, and the Drive
+   copy carries the bytes inline. */
+function recFingerprint(rec){
+  const r = Object.assign({}, rec);
+  if (r.attachment) r.attachment = { name: r.attachment.name, mimeType: r.attachment.mimeType, size: r.attachment.size };
+  return strHash(JSON.stringify(r));
+}
+function snapshotOf(modules, records){
+  const out = {};
+  modules.forEach(m => {
+    const r = {};
+    (records[m.id] || []).forEach(rec => { r[rec.id] = recFingerprint(rec); });
+    out[m.id] = { name: m.name, r };
+  });
+  return out;
+}
+// Per module: records added / removed / changed going from `from` to `to`.
+function diffSnapshots(from, to){
+  const res = [];
+  const ids = Object.keys(from).concat(Object.keys(to).filter(k => !(k in from)));
+  ids.forEach(mid => {
+    const a = (from[mid] || {}).r || {}, b = (to[mid] || {}).r || {};
+    let added = 0, removed = 0, changed = 0;
+    Object.keys(b).forEach(k => { if (!(k in a)) added++; else if (a[k] !== b[k]) changed++; });
+    Object.keys(a).forEach(k => { if (!(k in b)) removed++; });
+    res.push({ id: mid, name: (to[mid] || from[mid]).name, added, removed, changed });
+  });
+  return res;
+}
+
+function syncError(code){ const e = new Error(code); e.code = code; return e; }
+function showSyncError(e){
+  console.warn('Drive sync', e);
+  const c = e && e.code;
+  if (c === 'offline') setSyncStatus('', 'Offline — working on this device only. Tap to sync when you’re back online.', 'offline');
+  else if (c === 'expired') setSyncStatus('', 'Not signed in — Google sign-in expired. Changes stay on this device. Tap to sync.', 'Google sign-in expired');
+  else if (c === 'signin') setSyncStatus('', 'Not signed in — sign-in didn’t finish (closed, or a popup was blocked). Working on this device only. Tap to try again.', 'sign-in didn’t finish');
+  else if (c === 'denied') setSyncStatus('', 'Not signed in — Google Drive access wasn’t allowed. Working on this device only. Tap to try again.', 'Drive access not allowed');
+  else if (c === 'copies') setSyncStatus('err', syncRt.copies && syncRt.copies.length > 1
+    ? 'Not synced — found ' + syncRt.copies.length + ' Note Goat sync files in Drive. Nothing was saved. Tap to choose which one to use.'
+    : 'Not synced — found a Drive sync file this device hasn’t used before. Nothing was saved. Tap to choose whether to use it.');
+  else if (c === 'network') setSyncStatus('err', 'Error: couldn’t reach Google. Working on this device only. Tap to try again.');
+  else if (e && e.status === 403) setSyncStatus('err', 'Error: Google refused (' + e.message + '). Check the Drive API is enabled on your Google Cloud project. Tap to try again.');
+  else setSyncStatus('err', 'Error: ' + ((e && e.message) || 'unknown problem') + '. Working on this device only. Tap to try again.');
+}
+
+async function driveFetch(url, opts){
+  opts = opts || {};
+  const headers = Object.assign({ Authorization: 'Bearer ' + syncRt.token }, opts.headers || {});
+  let res;
+  try { res = await fetch(url, Object.assign({}, opts, { headers })); }
+  catch(e){ throw syncError(navigator.onLine === false ? 'offline' : 'network'); }
+  if (res.status === 401){ syncSignedOut(); throw syncError('expired'); }
+  if (!res.ok){
+    let msg = '';
+    try { const j = await res.json(); msg = (j.error && j.error.message) || ''; } catch(e){}
+    const err = new Error(msg || ('Google Drive answered ' + res.status)); err.status = res.status;
+    throw err;
+  }
+  return res;
+}
+async function driveGetMeta(id){
+  try {
+    const m = await (await driveFetch(DRIVE_FILES + '/' + encodeURIComponent(id) + '?fields=' + DRIVE_META)).json();
+    return m.trashed ? null : m;
+  } catch(e){ if (e.status === 404) return null; throw e; }
+}
+async function driveListSyncFiles(){
+  const q = "appProperties has { key='noteGoatSync' and value='1' } and trashed=false";
+  const j = await (await driveFetch(DRIVE_FILES + '?q=' + encodeURIComponent(q) +
+    '&orderBy=modifiedTime%20desc&pageSize=50&fields=' + encodeURIComponent('files(' + DRIVE_META + ')'))).json();
+  return j.files || [];
+}
+/* The one agreed sync file, or null if there is none. More than one, or
+   one this device hasn't agreed to, throws 'copies' — never picked silently. */
+async function resolveSyncFile(){
+  const files = await driveListSyncFiles();
+  if (!files.length) return null;
+  if (files.length === 1 && files[0].id === state.settings.syncFileId) return files[0];
+  syncRt.copies = files;
+  throw syncError('copies');
+}
+// The Note Goat folder, found by its tag anywhere in Drive (so a moved folder
+// is reused). An older untagged one at the top level gets tagged; otherwise one is made.
+async function driveFolderId(){
+  const tagged = await (await driveFetch(DRIVE_FILES + '?q=' + encodeURIComponent(NG_FOLDER_Q) + '&fields=files(id)')).json();
+  if (tagged.files && tagged.files.length) return tagged.files[0].id;
+  const q = "mimeType='application/vnd.google-apps.folder' and name='Note Goat' and trashed=false and 'root' in parents";
+  const j = await (await driveFetch(DRIVE_FILES + '?q=' + encodeURIComponent(q) + '&fields=files(id)')).json();
+  if (j.files && j.files.length){
+    await driveFetch(DRIVE_FILES + '/' + encodeURIComponent(j.files[0].id) + '?fields=id', { method:'PATCH',
+      headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ appProperties:{ noteGoatFolder:'1' } }) });
+    return j.files[0].id;
+  }
+  const made = await (await driveFetch(DRIVE_FILES + '?fields=id', { method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ name:'Note Goat', mimeType:'application/vnd.google-apps.folder', parents:['root'], appProperties:{ noteGoatFolder:'1' } }) })).json();
+  return made.id;
+}
+// Creates (fileId null) or replaces the sync file. Every save carries a new
+// revision marker, so another device can tell the copy changed. `urgent`
+// (page being left) sends small saves with keepalive so they survive the page closing.
+async function driveUpload(fileId, body, rev, urgent){
+  const meta = { appProperties: { noteGoatSync:'1', noteGoatRev: rev } };
+  if (!fileId){ meta.name = SYNC_FILE_NAME; meta.mimeType = 'application/json'; meta.parents = [await driveFolderId()]; }
+  const target = DRIVE_UPLOAD + (fileId ? '/' + encodeURIComponent(fileId) : '');
+  const method = fileId ? 'PATCH' : 'POST';
+  if (new Blob([body]).size <= SYNC_SIMPLE_MAX){
+    const b = '==NoteGoat' + Math.random().toString(36).slice(2);
+    const multipart = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) +
+      '\r\n--' + b + '\r\nContent-Type: application/json\r\n\r\n' + body + '\r\n--' + b + '--';
+    const keepalive = !!urgent && new Blob([multipart]).size <= SYNC_KEEPALIVE_MAX;
+    return (await driveFetch(target + '?uploadType=multipart&fields=' + DRIVE_META, { method, keepalive,
+      headers:{ 'Content-Type':'multipart/related; boundary=' + b }, body: multipart })).json();
+  }
+  // Bigger than 5 MB: Drive wants a resumable upload, sent here in one piece.
+  const start = await driveFetch(target + '?uploadType=resumable&fields=' + DRIVE_META, { method,
+    headers:{ 'Content-Type':'application/json; charset=UTF-8', 'X-Upload-Content-Type':'application/json' },
+    body: JSON.stringify(meta) });
+  const loc = start.headers.get('Location');
+  if (!loc) throw new Error('Google Drive didn’t return an upload address');
+  return (await driveFetch(loc, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body })).json();
+}
+
+function syncSignedOut(){
+  syncRt.token = null;
+  clearTimeout(syncRt.expiryTimer); clearTimeout(syncRt.timer);
+}
+function syncSignIn(){
+  return new Promise((resolve, reject) => {
+    const go = () => {
+      let client;
+      try {
+        client = google.accounts.oauth2.initTokenClient({
+          client_id: state.settings.googleClientId,
+          scope: SYNC_SCOPE, // only files this app made — not the rest of your Drive
+          callback: (resp) => {
+            if (resp && resp.access_token && google.accounts.oauth2.hasGrantedAllScopes(resp, SYNC_SCOPE)){
+              syncRt.token = resp.access_token;
+              clearTimeout(syncRt.expiryTimer);
+              const secs = Math.max(60, (parseInt(resp.expires_in, 10) || 3600) - 60);
+              syncRt.expiryTimer = setTimeout(() => {
+                syncSignedOut();
+                if (!syncRt.busy) showSyncError(syncError('expired'));
+              }, secs * 1000);
+              resolve();
+            } else reject(syncError('denied'));
+          },
+          error_callback: () => reject(syncError('signin')),
+        });
+      } catch(e){ reject(new Error('Google sign-in couldn’t start (' + e.message + ')')); return; }
+      client.requestAccessToken();
+    };
+    if (window.google && google.accounts && google.accounts.oauth2) go();
+    else loadGoogleScripts().then(go, () => reject(syncError(navigator.onLine === false ? 'offline' : 'network')));
+  });
+}
+
+async function onSyncBarTap(){
+  if (syncRt.busy) return;
+  if (!state.settings.googleClientId){
+    setSyncStatus('', 'Not set up — add your Google Client ID under Settings to sync.', 'Google not set up');
+    openConnectionsModal();
+    return;
+  }
+  if (navigator.onLine === false){ showSyncError(syncError('offline')); return; }
+  try {
+    if (!syncRt.token){ setSyncStatus('busy', 'Signing in…'); await syncSignIn(); }
+    if (syncRt.conflict){ openSyncChooser(syncRt.conflict); paintSyncBar(); return; }
+    await syncCompare();
+  } catch(e){ showSyncError(e); }
+}
+
+async function syncCompare(){
+  syncRt.busy = true;
+  syncRt.copies = null;
+  setSyncStatus('busy', 'Checking Google Drive…');
+  try {
+    const s = state.settings;
+    let remote;
+    try { remote = await resolveSyncFile(); }
+    catch(e){ if (e.code !== 'copies') throw e; showSyncError(e); openCopiesChooser(syncRt.copies); return; }
+    if (!remote){ await pushToDrive(null); return; }
+    const known = remote.id === s.syncFileId && !!s.syncRev;
+    const remoteChanged = !known || remoteRev(remote) !== s.syncRev;
+    const localChanged = localChangedSinceSync();
+    syncRt.sizeNote = sizeNoteFor(parseInt(remote.size, 10) || 0);
+    if (!remoteChanged && !localChanged){
+      if (!s.syncBase) s.syncBase = snapshotOf(state.modules, state.records);
+      markSynced(remote); return;
+    }
+    if (!remoteChanged){ await pushToDrive(remote.id); return; }
+    // First sync on a device with nothing in it: nothing to lose, just load.
+    if (!localChanged || (!known && localIsEmpty())){ await pullFromDrive(remote); return; }
+    syncRt.conflict = remote;
+    setSyncStatus('err', 'Not synced — this device and the Drive copy both changed. Tap to choose which to keep.');
+    openSyncChooser(remote);
+  } finally { syncRt.busy = false; }
+}
+
+function markSynced(meta){
+  const s = state.settings;
+  s.syncFileId = meta.id;
+  s.syncRev = remoteRev(meta);
+  s.syncLastSyncedAt = Date.now();
+  saveState();
+  setSyncStatus('ok', 'Synced at ' + timeOnly(s.syncLastSyncedAt));
+}
+
+async function pushToDrive(fileId, urgent){
+  setSyncStatus('busy', 'Saving…');
+  const hashAtBuild = state.settings.syncDataHash;
+  const baseAtBuild = snapshotOf(state.modules, state.records);
+  const payload = await buildExportPayload();
+  const meta = await driveUpload(fileId, payload, uid('rev'), urgent);
+  syncRt.sizeNote = sizeNoteFor(new Blob([payload]).size);
+  state.settings.syncLastHash = hashAtBuild;
+  state.settings.syncBase = baseAtBuild;
+  markSynced(meta);
+  if (localChangedSinceSync()) scheduleDriveSave(); // changed again while saving
+}
+
+async function downloadSyncCopy(id){
+  const text = await (await driveFetch(DRIVE_FILES + '/' + encodeURIComponent(id) + '?alt=media')).text();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+    if (!parsed || !Array.isArray(parsed.modules) || !parsed.records || typeof parsed.records !== 'object') throw new Error('not a Note Goat backup');
+    const problem = backupProblem(parsed);
+    if (problem) throw new Error(problem);
+  } catch(e){
+    throw new Error('the Drive copy couldn’t be read (' + e.message + '). Nothing on this device was changed');
+  }
+  return parsed;
+}
+
+async function pullFromDrive(remote){
+  setSyncStatus('busy', 'Loading the Drive copy…');
+  const parsed = await downloadSyncCopy(remote.id);
+  closeModal();
+  await applyBackupData(parsed);
+  // What just loaded is now this device's synced starting point.
+  const s = state.settings;
+  s.syncDataHash = dataHash();
+  s.dataChangedAt = Date.parse(remote.modifiedTime) || Date.now();
+  s.syncLastHash = s.syncDataHash;
+  s.syncBase = snapshotOf(state.modules, state.records);
+  markSynced(remote);
+  render();
+  showToast('Loaded the newer copy from Google Drive.');
+}
+
+/* More than one tagged sync file, or one this device hasn't used: the
+   person picks. The others are renamed "(not in use)" and untagged — never
+   deleted — so they stop being found. */
+function openCopiesChooser(files){
+  const s = state.settings;
+  let picked = files[0].id;
+  openModal(files.length > 1 ? 'More than one sync file' : 'Use this sync file?', (body) => {
+    body.appendChild(el('div', 'confirm-msg', files.length > 1
+      ? 'Google Drive has ' + files.length + ' Note Goat sync files. Using more than one lets your devices drift apart, so nothing was saved. Choose the one to keep syncing with. The others aren’t deleted: they’re renamed “(not in use)” and no longer used.'
+      : 'This device hasn’t synced with this Drive file before, so nothing was saved yet. Use it as the sync file? Next, it’s compared with this device, and you’re asked before anything is replaced.'));
+    const list = el('div', ''); list.style.margin = '12px 0';
+    files.forEach((f, i) => {
+      const row = el('label', 'checklist-row'); row.style.cursor = 'pointer';
+      const rb = document.createElement('input'); rb.type = 'radio'; rb.name = 'syncCopy'; rb.checked = i === 0;
+      rb.onchange = () => { picked = f.id; };
+      row.appendChild(rb);
+      const t = el('div', 'item-main');
+      t.appendChild(el('div', 'item-title', f.name || SYNC_FILE_NAME));
+      const when = Date.parse(f.modifiedTime);
+      t.appendChild(el('div', 'item-meta', 'Last saved ' + (when ? formatDateTime(when) : 'at an unknown time') +
+        (f.size ? ' · ' + humanFileSize(parseInt(f.size, 10)) : '') + (f.id === s.syncFileId ? ' · this device’s sync file until now' : '')));
+      row.appendChild(t);
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+  }, [
+    buttonEl('Decide later', 'btn-secondary', closeModal),
+    buttonEl(files.length > 1 ? 'Use selected' : 'Use this file', 'btn-primary', () => { closeModal(); useSyncCopy(picked, files); }),
+  ]);
+}
+async function useSyncCopy(id, files){
+  if (syncRt.busy) return;
+  syncRt.busy = true;
+  setSyncStatus('busy', 'Setting the sync file…');
+  try {
+    if (!syncRt.token) await syncSignIn();
+    for (const f of files){
+      if (f.id === id) continue;
+      const when = Date.parse(f.modifiedTime);
+      const stamp = when ? new Date(when).toISOString().slice(0, 16).replace('T', ' ') : 'unknown date';
+      await driveFetch(DRIVE_FILES + '/' + encodeURIComponent(f.id) + '?fields=id', { method:'PATCH',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ name: 'Note Goat Sync (not in use, saved ' + stamp + ').json', appProperties:{ noteGoatSync: null } }) });
+    }
+    const s = state.settings;
+    if (id !== s.syncFileId){ s.syncFileId = id; s.syncRev = null; s.syncBase = null; }
+    syncRt.copies = null;
+    saveState();
+  } catch(e){ syncRt.busy = false; showSyncError(e); return; }
+  syncRt.busy = false;
+  try { await syncCompare(); } catch(e){ showSyncError(e); }
+}
+
+function diffLine(d){
+  const parts = [];
+  if (d.added) parts.push(d.added + ' added');
+  if (d.removed) parts.push(d.removed + ' removed');
+  if (d.changed) parts.push(d.changed + ' changed');
+  return parts.length ? parts.join(', ') : 'no changes';
+}
+async function fillSyncDiff(box, remote){
+  box.textContent = 'Comparing the two copies…';
+  let parsed;
+  try { parsed = await downloadSyncCopy(remote.id); }
+  catch(e){ box.textContent = 'Couldn’t load the Drive copy to compare (' + (e.code ? 'connection problem' : e.message) + ').'; return; }
+  const localSnap = snapshotOf(state.modules, state.records);
+  const remoteSnap = snapshotOf(parsed.modules, parsed.records);
+  const base = state.settings.syncBase;
+  box.innerHTML = '';
+  const known = base && remote.id === state.settings.syncFileId;
+  if (known){
+    const mine = diffSnapshots(base, localSnap), theirs = diffSnapshots(base, remoteSnap);
+    const ids = mine.map(d => d.id).concat(theirs.map(d => d.id).filter(id => !mine.some(d => d.id === id)));
+    let any = false;
+    ids.forEach(id => {
+      const a = mine.find(d => d.id === id) || { added:0, removed:0, changed:0 };
+      const b = theirs.find(d => d.id === id) || { added:0, removed:0, changed:0 };
+      if (!(a.added || a.removed || a.changed || b.added || b.removed || b.changed)) return;
+      any = true;
+      const row = el('div', 'item-row');
+      const m = el('div', 'item-main');
+      m.appendChild(el('div', 'item-title', (localSnap[id] || remoteSnap[id] || base[id]).name));
+      m.appendChild(el('div', 'item-meta', 'This device: ' + diffLine(a)));
+      m.appendChild(el('div', 'item-meta', 'Drive: ' + diffLine(b)));
+      row.appendChild(m); box.appendChild(row);
+    });
+    if (!any) box.appendChild(el('div', 'item-meta', 'No record differences found — only module settings (fields, names) differ.'));
+  } else {
+    box.appendChild(el('div', 'field-hint', 'This device hasn’t synced with this file before, so this compares the two copies directly.'));
+    let any = false;
+    diffSnapshots(localSnap, remoteSnap).forEach(d => {
+      if (!(d.added || d.removed || d.changed)) return;
+      any = true;
+      const parts = [];
+      if (d.removed) parts.push(d.removed + ' only on this device');
+      if (d.added) parts.push(d.added + ' only in Drive');
+      if (d.changed) parts.push(d.changed + ' different');
+      const row = el('div', 'item-row');
+      const m = el('div', 'item-main');
+      m.appendChild(el('div', 'item-title', d.name));
+      m.appendChild(el('div', 'item-meta', parts.join(', ')));
+      row.appendChild(m); box.appendChild(row);
+    });
+    if (!any) box.appendChild(el('div', 'item-meta', 'No record differences found — only module settings (fields, names) differ.'));
+  }
+}
+
+function openSyncChooser(remote){
+  const s = state.settings;
+  const driveWhen = Date.parse(remote.modifiedTime);
+  const exportBtn = buttonEl('Export this device first', 'btn-secondary', async () => {
+    exportBtn.disabled = true; exportBtn.textContent = 'Exporting…';
+    try { await triggerExportDownload(false); }
+    finally { exportBtn.disabled = false; exportBtn.textContent = 'Export this device first'; }
+  });
+  openModal('Both copies changed', (body) => {
+    body.appendChild(el('div', 'confirm-msg',
+      'This device and the Drive copy have both changed since this device last synced' +
+      (s.syncLastSyncedAt ? ' (' + formatDateTime(s.syncLastSyncedAt) + ')' : '') +
+      '. Nothing is merged — choose one copy to keep. The other one is replaced.'));
+    const list = el('div', ''); list.style.margin = '12px 0';
+    list.appendChild(el('div', 'item-meta', 'Drive copy — last saved ' + (driveWhen ? formatDateTime(driveWhen) : 'at an unknown time')));
+    list.appendChild(el('div', 'item-meta', 'This device — last changed ' + (s.dataChangedAt ? formatDateTime(s.dataChangedAt) : 'at an unknown time')));
+    body.appendChild(list);
+    body.appendChild(el('div', 'field-label', 'What differs'));
+    const diffBox = el('div', ''); diffBox.style.marginBottom = '12px';
+    body.appendChild(diffBox);
+    fillSyncDiff(diffBox, remote);
+    body.appendChild(el('div', 'field-hint', 'Not sure? “Export this device first” saves this device’s copy to a file and keeps this box open.'));
+  }, [
+    exportBtn,
+    buttonEl('Decide later', 'btn-secondary', closeModal),
+    buttonEl('Keep Drive copy', 'btn-secondary', () => { closeModal(); resolveSyncConflict('drive'); }),
+    buttonEl('Keep this device', 'btn-primary', () => { closeModal(); resolveSyncConflict('local'); }),
+  ]);
+}
+
+async function resolveSyncConflict(keep){
+  if (syncRt.busy) return;
+  syncRt.busy = true;
+  try {
+    if (!syncRt.token){ setSyncStatus('busy', 'Signing in…'); await syncSignIn(); }
+    syncRt.conflict = null;
+    let remote;
+    try { remote = await resolveSyncFile(); }
+    catch(e){ if (e.code !== 'copies') throw e; showSyncError(e); openCopiesChooser(syncRt.copies); return; }
+    if (keep === 'drive' && remote) await pullFromDrive(remote);
+    else await pushToDrive(remote ? remote.id : null);
+  } catch(e){ showSyncError(e); }
+  finally { syncRt.busy = false; }
+}
+
+// After a sync, every change saves to Drive a few seconds after the last edit
+// (straight away if the page is being left).
+function scheduleDriveSave(){
+  if (!syncRt.token || syncRt.conflict || syncRt.copies) return;
+  clearTimeout(syncRt.timer);
+  setSyncStatus('busy', 'Saving…');
+  const leaving = document.visibilityState === 'hidden';
+  syncRt.timer = setTimeout(() => driveAutoSave(leaving), leaving ? 0 : SYNC_DEBOUNCE_MS);
+}
+async function driveAutoSave(urgent){
+  if (!syncRt.token || syncRt.conflict || syncRt.copies) return;
+  if (syncRt.busy){ scheduleDriveSave(); return; }
+  if (!localChangedSinceSync()){ setSyncStatus('ok', 'Synced at ' + timeOnly(state.settings.syncLastSyncedAt || Date.now())); return; }
+  if (navigator.onLine === false){
+    setSyncStatus('', 'Offline — changes are kept on this device and will save to Drive when you’re back online.', 'offline');
+    return;
+  }
+  syncRt.busy = true;
+  try {
+    const s = state.settings;
+    const remote = await resolveSyncFile();
+    if (remote && remoteRev(remote) !== s.syncRev){
+      // Another device saved meanwhile — ask, never overwrite.
+      syncRt.conflict = remote;
+      setSyncStatus('err', 'Not synced — the Drive copy was changed on another device. Tap to choose which copy to keep.');
+      return;
+    }
+    await pushToDrive(remote ? remote.id : null, urgent);
+  } catch(e){ showSyncError(e); }
+  finally { syncRt.busy = false; }
+}
+// Leaving the page (switching apps, closing the tab): save now, not in 4 seconds.
+function saveNowIfLeaving(){
+  if (!syncRt.token || syncRt.conflict || syncRt.copies || !localChangedSinceSync()) return;
+  clearTimeout(syncRt.timer);
+  driveAutoSave(true);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNowIfLeaving(); });
+window.addEventListener('pagehide', saveNowIfLeaving);
+window.addEventListener('online', () => {
+  if (syncRt.token && !syncRt.conflict && !syncRt.copies && localChangedSinceSync()) scheduleDriveSave();
+  else if (!syncRt.token) setSyncStatus('', 'Tap to sync');
+});
+window.addEventListener('offline', () => {
+  if (!syncRt.busy) setSyncStatus('', 'Offline — working on this device only.', 'offline');
+});
 
 function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
   _attempt = _attempt || 0;
@@ -2364,13 +2922,25 @@ function fieldValueForExport(f, rec){
 }
 
 async function findOrCreateFolder(name, parentId){
+  // The app's own top-level "Note Goat" folder carries a tag and is found by
+  // it anywhere in Drive, so a folder that was moved is reused, not duplicated.
+  const isAppFolder = name === 'Note Goat' && !parentId;
+  if (isAppFolder){
+    const tagged = await gapi.client.drive.files.list({ q: NG_FOLDER_Q, fields: 'files(id)' });
+    if (tagged.result.files && tagged.result.files.length) return tagged.result.files[0].id;
+  }
   const safeName = name.replace(/'/g, "\\'");
   const parentClause = parentId ? (" and '" + parentId + "' in parents") : " and 'root' in parents";
   const q = "mimeType='application/vnd.google-apps.folder' and name='" + safeName + "' and trashed=false" + parentClause;
   const listRes = await gapi.client.drive.files.list({ q, fields: 'files(id,name)' });
-  if (listRes.result.files && listRes.result.files.length) return listRes.result.files[0].id;
+  if (listRes.result.files && listRes.result.files.length){
+    const id = listRes.result.files[0].id;
+    if (isAppFolder) await gapi.client.drive.files.update({ fileId: id, resource: { appProperties: { noteGoatFolder: '1' } }, fields: 'id' });
+    return id;
+  }
   const createRes = await gapi.client.drive.files.create({
-    resource: { name, mimeType: 'application/vnd.google-apps.folder', parents: parentId ? [parentId] : [] },
+    resource: Object.assign({ name, mimeType: 'application/vnd.google-apps.folder', parents: parentId ? [parentId] : [] },
+      isAppFolder ? { appProperties: { noteGoatFolder: '1' } } : {}),
     fields: 'id',
   });
   return createRes.result.id;
@@ -2644,6 +3214,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         <li><a href="#capture">Quick Capture &amp; AI cleanup</a></li>
         <li><a href="#sync">Sync</a></li>
         <li><a href="#settings">Settings: keys &amp; connections</a></li>
+        <li><a href="#drivesync">Sync between devices (Google Drive)</a></li>
         <li><a href="#backup">Backup &amp; transfer</a></li>
         <li><a href="#privacy">Data &amp; privacy</a></li>
         <li><a href="#phone">Installing on your phone</a></li>
@@ -2666,7 +3237,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
           <li><b>Area cards</b> — one per module that has records: its name, how many records, and, if it has a List field, how many are in each choice (e.g. Current / Possibly dropped / Unclear). Tap a card to open that module.</li>
           <li><b>Overdue</b> — due date before today and not done. Oldest first.</li>
           <li><b>Due soon</b> — due date from today to <i>N</i> days ahead (14 to start with), not done. Soonest first.</li>
-          <li><b>Gone quiet</b> — not changed in <i>M</i> days (21 to start with). Leaves out done records and records whose List is Unclear. Oldest first.</li>
+          <li><b>Gone quiet</b> — not changed in <i>M</i> days (21 to start with). Leaves out done records, records whose List is Unclear, and records whose Next step is "—" or "None set". Oldest first.</li>
           <li><b>Next steps</b> — every record with a Next step filled in, grouped by module. A Next step of "—" or "None set" counts as empty.</li>
         </ul>
         <p>Each row shows the record's title, its module, its due date and its next step. Tap the title to open the record. Change <i>N</i> and <i>M</i> at the top of the Dashboard; they're saved on this device only, like Settings, and don't go into a backup.</p>
@@ -2765,18 +3336,35 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         </ol>
       </section>
 
+      <section id="drivesync">
+        <p class="sec-num">10a</p>
+        <h2>Sync between devices (Google Drive)</h2>
+        <p>Keeps your phone and computer in step through one file in your own Google Drive: <b>Note Goat Sync.json</b>, in the <b>Note Goat</b> folder. It holds exactly what Export makes — every module and record, with files/photos — and never your keys or settings.</p>
+        <ol class="steps">
+          <li>When the app opens, a bar at the top says <b>Tap to sync</b>. Tap it and sign in to Google. Note Goat asks only to see files it made itself, not the rest of your Drive.</li>
+          <li>It compares the Drive copy with this device. If Drive is newer, it loads it. If this device is newer, it saves to Drive.</li>
+          <li>If <b>both</b> changed since this device last synced, it shows both dates and <b>what differs</b>: for each module, how many records were added, removed or changed on this device and in Drive. Pick which copy to keep; the other is replaced. Nothing is ever merged, and nothing is overwritten without asking. <b>Export this device first</b> downloads a normal Export of this device and keeps the box open. <b>Decide later</b> leaves both alone.</li>
+          <li>After that, while you're signed in, every change saves to Drive a few seconds after you stop editing — or straight away when you switch apps or close the page.</li>
+          <li>Every sync first checks there is exactly one sync file in Drive, and that it's the one this device uses. If there are two (say, each device made its own), or a file this device hasn't used before, nothing is saved: it lists each copy with its last-saved date and you pick which one to use. The others aren't deleted — they're renamed "(not in use)" and stop being used. A new device sees this once, on its first sync.</li>
+        </ol>
+        <p>The bar always says where things stand: <b>Synced at</b> a time, <b>Saving…</b>, <b>Not signed in</b>, <b>Offline</b>, or <b>Error</b> with the reason. If this device has changes that aren't in Drive yet — for example after sign-in expired — the bar turns gold and says <b>Unsynced changes on this device. Tap to sync</b>. If you're offline or sign-in fails, the app keeps working on this device and says so; tap the bar again later.</p>
+        <p>Before the first sync, add your Google <b>Client ID</b> under Settings — the same one on every device, or the devices can't see each other's file. Sync needs only the Client ID and the Drive API; the API key is only for Sheets/Docs/Calendar. A device that has nothing in it yet just loads the Drive copy on its first sync; one that already has records asks first.</p>
+        <p>The <b>Note Goat</b> folder is found by a hidden tag, not by where it is, so you can move it anywhere in your Drive and Note Goat keeps using it instead of making a new one. The sync file is found the same way.</p>
+        <p>If the file gets big (over 10 MB, usually from photos), the bar says so — syncing still works, just slower. Each device remembers when it last synced in its own Settings; that isn't in the file.</p>
+      </section>
+
       <section id="backup">
         <p class="sec-num">10</p>
         <h2>Backup &amp; transfer</h2>
         <p>Also under Settings. <b>Export</b> writes one file with everything in the app — every module, every record, every file/photo — except what's in Settings (your keys, Google setup and export schedule), which stays on this device. Move that file however you'd move any file (AirDrop, email to yourself, a cloud-drive folder) and use <b>Import</b> on the other device to read it back in.</p>
-        <p>Import always asks you to confirm first, naming what it's about to replace — it's a full restore, not a merge, and it's the only way data moves between devices; nothing syncs automatically. A damaged or hand-edited file is refused with a reason, and nothing is replaced.</p>
+        <p>Import always asks you to confirm first, naming what it's about to replace — it's a full restore, not a merge. (To keep devices in step automatically, use Drive sync, above.) A damaged or hand-edited file is refused with a reason, and nothing is replaced.</p>
         <p>Set Export to <b>Daily</b> or <b>Weekly</b> instead of Manual and the app checks, once, the next time you open it — if it's overdue, it exports quietly with a small confirmation, no prompt. That's not a true background schedule (nothing can run while the app is closed, especially on iPhone) — it's "checked whenever you happen to open it," which works out the same in practice if you use the app regularly.</p>
       </section>
 
       <section id="privacy">
         <p class="sec-num">11</p>
         <h2>Data &amp; privacy</h2>
-        <p>Everything lives in this browser: module and record data in <code>localStorage</code>, file/photo bytes in IndexedDB. No account. The only network calls this app makes are the ones you trigger — a call to the app owner's proxy (then Anthropic) for AI capture or module setup, using your passcode, or a direct Google call when you click Sync, using your own Google keys. Fonts are built in, and Google's sign-in scripts load only when you open Settings or a module's Sync window.</p>
+        <p>Everything lives in this browser: module and record data in <code>localStorage</code>, file/photo bytes in IndexedDB. No account. The only network calls this app makes are the ones you trigger — a call to the app owner's proxy (then Anthropic) for AI capture or module setup, using your passcode, or a direct Google call when you click Sync, using your own Google keys. Fonts are built in. Google's sign-in scripts load when the app opens only if a Google Client ID is saved in Settings (so the sync bar's sign-in opens straight away); without one, they load only when you open Settings or a module's Sync window. Drive sync talks only to Google Drive, using your own Google sign-in.</p>
       </section>
 
       <section id="phone">
@@ -2790,7 +3378,8 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         <h2>Known limits</h2>
         <ul class="plain">
           <li>Nothing here can stop a browser's own "clear site data" from wiping everything — that's a browser boundary, not something any web page can override. Regular Export is the real protection.</li>
-          <li>Import replaces everything currently in the app; it doesn't merge two devices' changes together.</li>
+          <li>Import replaces everything currently in the app; it doesn't merge two devices' changes together. Drive sync doesn't merge either — when both copies changed, you pick one.</li>
+          <li>Drive sync needs one tap each time you open the app, and again after about an hour, because Google's sign-in isn't kept.</li>
           <li>A backup file with lots of large photos in it will itself be large — no compression is attempted.</li>
           <li>Changes reach Google only when you click Sync — deleting a record here takes it out of Sheets, Docs and Calendar at that module's next sync, not straight away.</li>
           <li>On another device, Sheets sync starts a new <b>Note Goat Sync</b> spreadsheet — which spreadsheet to use is a Settings item and doesn't travel in a backup.</li>
@@ -2822,6 +3411,9 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
    ========================================================= */
 render();
 checkScheduledExport();
+paintSyncBar();
+preloadGoogleScripts(); // only when a Google Client ID is set; makes the sync bar's sign-in popup open straight away
+if (navigator.onLine === false) setSyncStatus('', 'Offline — working on this device only.');
 if (navigator.storage && navigator.storage.persist){
   navigator.storage.persist().catch(() => {}); // best-effort; doesn't guard against a deliberate "clear site data"
 }
