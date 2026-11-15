@@ -243,6 +243,43 @@ label) per item, plus an optional filter to narrow to one group — grouping
 lives in the data and in an optional view, not in the page's default
 layout.
 
+## Dashboard
+
+A separate view, next to Home in the sidebar, so Home can stay small. It
+shows everything across all modules on one screen, and only reads records:
+it adds nothing to module or record shapes and changes nothing in the
+backup format.
+
+- **Area cards** — one per module that has records: name, record count,
+  and counts per option of its List field if it has one. Tapping a card
+  opens the module.
+- **Overdue** — due date before today, not done. Oldest first.
+- **Due soon** — due date from today to N days ahead, not done. Soonest
+  first.
+- **Gone quiet** — `updatedAt` (else `createdAt`) older than M days,
+  excluding done records and List = Unclear. Oldest first.
+- **Next steps** — Next step not empty, "—" or "None set", grouped by
+  module.
+
+Rows reuse the Home item row: `recordTitle`, module name, due date, next
+step; tapping opens the record modal. "Today" is the local calendar day.
+
+**Field conventions** — found by convention, never configured:
+
+| Meaning | Rule |
+|---|---|
+| Due date | Field with id `due`, else the module's first Date field (so Appointments-style modules work) |
+| Next step | Field with id `next`, or label "Next step" (case-insensitive) |
+| List | Choice list field with id `list`, or label "List" (case-insensitive). Empty counts as its first option, matching what the form shows |
+| Done | `rec.fields.done === true` |
+
+Fields a person adds by hand get random ids, so for those the label rule is
+what matters.
+
+N (default 14) and M (default 21) are edited on the Dashboard and stored as
+`state.settings.dashDueDays` / `dashQuietDays` — device-only like the rest
+of `settings`, so not in the export.
+
 ## AI capture
 
 The concrete use case that makes this the right time to add an AI feature
