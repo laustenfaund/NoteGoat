@@ -384,8 +384,9 @@ the export/import path above.
 > stays as backup and as a manual path; it is no longer the only way data
 > moves between devices.
 
-**What it is.** One file, `Note Goat Sync.json`, in the person's own Drive
-(the `Note Goat` folder), with exactly the Export JSON: modules and
+**What it is.** One file, `Note Goat Sync.json` (tagged
+`appProperties.noteGoatSync = 1`), in the person's own Drive (the
+`Note Goat` folder), with exactly the Export JSON: modules and
 records, attachments as base64, never `settings`. No backend: the browser
 talks to the Drive REST API directly with `fetch`.
 
@@ -403,7 +404,9 @@ blocked; with no Client ID, no Google site is contacted.
 random revision marker into the file's `appProperties` (`noteGoatRev`).
 Each device keeps, in its own `settings` (device-only, not exported):
 `syncFileId`, `syncRev` (the marker it last saw), `syncLastHash` (a
-fingerprint of its modules + records at last sync), `syncDataHash` and
+fingerprint of its modules + records at last sync), `syncBase` (one
+fingerprint per record at last sync, for the "what differs" summary),
+`syncDataHash` and
 `dataChangedAt` (fingerprint and time of its latest data change, updated
 in `saveState`), and `syncLastSyncedAt`.
 
@@ -418,12 +421,44 @@ A device's first sync with an existing Drive file counts as "Drive
 changed"; if the device has no records at all it just loads, otherwise
 it asks.
 
+**Exactly one sync file, never picked silently.** Every sync (tap,
+autosave, resolving a conflict) first lists every file tagged
+`noteGoatSync`. If there's more than one, or the one found isn't this
+device's `syncFileId` (including a device's very first sync), it stops
+without saving and lists each copy with its last-saved date. The person
+picks one; the others are renamed "(not in use, saved …)" and untagged,
+never deleted. This closes the hole where two devices each create a file
+and then drift apart, each happily syncing with its own.
+
+**What differs.** The "Both copies changed" box downloads the Drive copy
+and, per module, counts records added / removed / changed on each side
+against `syncBase`. When this device has no base for that file (it just
+picked it), it compares the two copies directly instead (only on this
+device / only in Drive / different) and says so. Attachments are compared
+by name, type and size, since their IndexedDB keys differ per device. An
+"Export this device first" button runs the normal Export and leaves the
+box open.
+
+**Folder found by tag.** The `Note Goat` folder is created with
+`appProperties.noteGoatFolder = 1` and found by that tag anywhere in Drive,
+so moving it (by hand or by a Drive tidy-up script) doesn't create a
+duplicate. An older untagged `Note Goat` folder at the top level gets the
+tag and is reused. Sheets/Docs sync's `findOrCreateFolder` uses the same
+rule.
+
 **Autosave.** While signed in, a data change saves to Drive 4 seconds
-after the last edit. Before saving, it checks the marker; if another device
-saved meanwhile, it stops and the bar asks the person to choose.
+after the last edit — or at once when the page is hidden or left
+(`visibilitychange` to hidden, `pagehide`), sent with `keepalive` when
+small enough (browsers cap that at 64 KB) so it survives the page closing.
+Before saving, it checks the marker; if another device saved meanwhile, it
+stops and the bar asks the person to choose.
 
 **Status, honestly.** The bar shows Synced at [time] / Saving / Not signed
-in / Offline / Error with a plain reason. Offline or failed sign-in never
+in / Offline / Error with a plain reason. When this device has changes not
+yet in Drive (it has synced before and its data changed since) and nothing
+is saving them — sign-in expired, offline, not signed in after reopening —
+the bar switches to the warning color and says "Unsynced changes on this
+device. Tap to sync". Offline or failed sign-in never
 blocks local use. Files over 10 MB get a "large" note in the bar; over 5 MB
 uploads use Drive's resumable upload.
 
