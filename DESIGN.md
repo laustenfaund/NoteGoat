@@ -37,8 +37,10 @@ decision below was checked against them:
   external is a mirror, never authoritative.
 - **One-way sync only, never two-way.** Two-way means conflict resolution,
   which means either a backend or real client-side complexity that a
-  single-user tool doesn't need. Every sync path in this app pushes out and
-  never reads back, same as PM's Sheets/Docx/Drive sync.
+  single-user tool doesn't need. Every sync path to Sheets/Docs/Calendar
+  pushes out and never reads back, same as PM's Sheets/Docx/Drive sync.
+  The one exception is device-to-device Drive sync (see "Drive sync between
+  devices," below), which reads back on purpose but never merges.
 - **BYOK for AI, opt-in.** The person's own Anthropic API key, direct
   browser-to-API calls, no markup, nothing routed through a server of ours.
 - **User-authored, never silently inferred.** Nothing gets categorized,
@@ -257,7 +259,8 @@ backup format.
 - **Due soon** — due date from today to N days ahead, not done. Soonest
   first.
 - **Gone quiet** — `updatedAt` (else `createdAt`) older than M days,
-  excluding done records and List = Unclear. Oldest first.
+  excluding done records, List = Unclear, and records whose Next step is
+  "—" or "None set". Oldest first.
 - **Next steps** — Next step not empty, "—" or "None set", grouped by
   module.
 
@@ -374,6 +377,61 @@ free mitigation for *automatic* eviction under disk pressure — a different
 and much narrower problem than a deliberate clear, not a substitute for
 the export/import path above.
 
+## Drive sync between devices
+
+> **This replaces the Sept 1 decision** to use manual Export/Import
+> instead of Drive sync for moving data between devices. Export/Import
+> stays as backup and as a manual path; it is no longer the only way data
+> moves between devices.
+
+**What it is.** One file, `Note Goat Sync.json`, in the person's own Drive
+(the `Note Goat` folder), with exactly the Export JSON: modules and
+records, attachments as base64, never `settings`. No backend: the browser
+talks to the Drive REST API directly with `fetch`.
+
+**Sign-in.** A bar at the top of every view says "Tap to sync". One tap
+gets a Google token through the same Google Identity Services token flow
+as Sheets/Docs/Calendar, but with its own token client asking only for
+`drive.file` (files this app made, nothing else in Drive). It's kept apart
+from the Sheets/Docs/Calendar token so neither changes the other's scopes.
+Tokens last about an hour and aren't stored; when one expires the bar says
+"Not signed in" and the next tap starts again. If a Client ID is saved,
+Google's sign-in script loads on page open so the tap's popup isn't
+blocked; with no Client ID, no Google site is contacted.
+
+**Deciding direction — whole file, never merged.** Each save writes a new
+random revision marker into the file's `appProperties` (`noteGoatRev`).
+Each device keeps, in its own `settings` (device-only, not exported):
+`syncFileId`, `syncRev` (the marker it last saw), `syncLastHash` (a
+fingerprint of its modules + records at last sync), `syncDataHash` and
+`dataChangedAt` (fingerprint and time of its latest data change, updated
+in `saveState`), and `syncLastSyncedAt`.
+
+| Drive changed? | This device changed? | Result |
+|---|---|---|
+| No | No | Synced |
+| No | Yes | Save to Drive |
+| Yes | No | Load from Drive (same path as Import) |
+| Yes | Yes | Show both dates; the person keeps one. Never merged, never overwritten without asking |
+
+A device's first sync with an existing Drive file counts as "Drive
+changed"; if the device has no records at all it just loads, otherwise
+it asks.
+
+**Autosave.** While signed in, a data change saves to Drive 4 seconds
+after the last edit. Before saving, it checks the marker; if another device
+saved meanwhile, it stops and the bar asks the person to choose.
+
+**Status, honestly.** The bar shows Synced at [time] / Saving / Not signed
+in / Offline / Error with a plain reason. Offline or failed sign-in never
+blocks local use. Files over 10 MB get a "large" note in the bar; over 5 MB
+uploads use Drive's resumable upload.
+
+**Why this is acceptable against "one-way only."** The worry behind that
+rule was conflict resolution. Here there is none to automate: the unit is
+the whole file, the direction is decided by markers, and a real conflict
+always goes to the person.
+
 ## Known risks (accepted, not hidden)
 
 - **A blank Library the first time someone opens it is still a cliff**,
@@ -406,7 +464,8 @@ the export/import path above.
   "Project"-equivalent — a real design fork, not a default, and explicitly
   not attempted here.
 - **Two-way sync of any kind**, calendar included — consistent with every
-  other app in the family.
+  other app in the family. Device-to-device Drive sync is the one
+  exception, and it replaces whole copies rather than merging.
 - **Auto-inferred module placement or categorization.** The AI capture
   feature produces one note, not a guess at where structured data belongs.
 - **Live/synced connections between two people's copies of the app** — not
