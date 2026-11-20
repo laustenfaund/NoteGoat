@@ -214,6 +214,19 @@ everything at once:
 - **Coming up** — collapsed to a count plus the single soonest item ("Next:
   Dr. Smith, Tue 2pm — 3 more"), expands to the full list on click.
 - **Next steps** — same collapsed/expand pattern.
+
+Coming up and Next steps read **every module**, using the Dashboard's
+field conventions (below), not only modules made from a particular
+template — a Home page showing "Nothing scheduled" while a record
+elsewhere is past its due date was misleading. Coming up lists every
+not-done record with a due date, soonest first; a past date stays at the
+top as "was due" (neutral wording, no alert styling), except in Dated /
+scheduled modules, where a past date is an appointment that already
+happened and drops off. Next steps lists unticked Next Steps–template
+items (tickable on the card, as before) plus every not-done record
+elsewhere whose Next step is set. Unanswered questions is still
+template-only: there's no general field convention for "an open
+question" to read from other modules.
 - **Unanswered Questions** — things asked but not yet resolved (the
   personal-organizer analog of PM's Open Items / an RFI: a question that
   stays open until someone answers it, not until a date passes). This is
