@@ -46,6 +46,8 @@ feature.
   BYOK pattern as U/I and Archive Mole.
 - **Home page** — four collapsed cards (Quick capture, Coming up, Next
   steps, Unanswered questions), each expanding to a full list on click.
+  Coming up and Next steps read every module, finding the due date and
+  next step the same way the Dashboard does.
 - **Schema editing** — editing a module's fields after records already
   exist in it follows a confirm-then-refuse pattern: a field deletion or
   type change that would lose or corrupt data asks for confirmation or is

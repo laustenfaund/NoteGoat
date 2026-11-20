@@ -87,13 +87,21 @@ h1,h2,h3{margin:0;}
   border-radius:20px;
   box-shadow:0 24px 60px rgba(35,30,20,0.16), 0 2px 8px rgba(35,30,20,0.06);
   overflow:hidden;
+  /* clip, not hidden, where supported: hidden makes the shell a scroll
+     container, which would stop the sidebar below from sticking. */
+  overflow:clip;
   align-self:flex-start;
 }
 
-/* ---------- Sidebar ---------- */
+/* ---------- Sidebar ----------
+   Sticky and one screen tall, so Library / Manual / Settings stay in the
+   same place at the bottom however long the page is, and don't move when
+   the page's content changes height. The module list scrolls if needed. */
 .sidebar{
   width:230px;flex-shrink:0;
   display:flex;flex-direction:column;
+  position:sticky;top:22px;align-self:flex-start;
+  height:calc(100vh - 44px);height:calc(100dvh - 44px);
 }
 .brand{padding:22px 18px 16px;position:relative;overflow:hidden;}
 .brand-inner{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-end;}
@@ -137,8 +145,13 @@ nav.module-list{flex:1;overflow-y:auto;padding:8px 10px;}
 
 /* ---------- Main ---------- */
 .main{flex:1;min-width:0;padding:28px 34px 60px;max-width:960px;background:var(--panel);overflow-y:auto;}
-.page-title{font-size:22px;font-weight:700;margin-bottom:2px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.4);}
-.page-sub{color:#fff;opacity:0.9;font-size:13px;margin-bottom:22px;text-shadow:0 1px 3px rgba(0,0,0,0.4);}
+/* The page title sits on the solid cream panel, not the stripes, so it
+   uses ink colors (white text here was close to invisible). */
+.page-title{font-size:22px;font-weight:700;margin:0 0 2px;color:var(--ink);}
+.page-sub{color:var(--ink-dim);font-size:13px;margin-bottom:22px;}
+
+/* Visible keyboard focus for everything you can tab to. */
+button:focus-visible, [role="button"]:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 
 /* ---------- Cards (home) ---------- */
 .cards{display:flex;flex-direction:column;gap:12px;}
@@ -219,6 +232,11 @@ nav.module-list{flex:1;overflow-y:auto;padding:8px 10px;}
 .module-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:10px;flex-wrap:wrap;}
 .module-toolbar-actions{display:flex;gap:8px;}
 
+/* Wide tables scroll inside their own box instead of pushing the page
+   sideways. Data columns get a minimum width so short columns like
+   Status don't collapse into a tall, narrow strip. */
+.table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--radius);}
+table.record-table td:not(.actions){min-width:6.5em;}
 table.record-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
 table.record-table th{
   text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-faint);
@@ -314,7 +332,8 @@ table.record-table td.actions{white-space:nowrap;width:1%;}
 .tpl-custom-btn:hover{border-color:var(--accent);color:var(--accent-ink);}
 
 .schema-field-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;background:var(--surface-sunk);padding:8px;border-radius:8px;}
-.schema-field-row input, .schema-field-row select{flex:1;min-width:0;}
+.schema-field-row input, .schema-field-row select{flex:1;min-width:0;border:1px solid var(--line-strong);border-radius:7px;padding:7px 9px;background:var(--surface);color:var(--ink);}
+.schema-field-row input:focus, .schema-field-row select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
 .schema-field-row .rm-field{flex:0 0 auto;background:none;border:none;color:var(--ink-faint);font-size:16px;padding:2px 6px;}
 .schema-field-row .rm-field:hover{color:var(--danger);}
 .add-field-btn{margin-top:4px;}
@@ -345,6 +364,7 @@ table.record-table td.actions{white-space:nowrap;width:1%;}
   .sidebar{
     width:100%;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;
     padding-top:env(safe-area-inset-top,0px);
+    position:static;height:auto;
   }
   .brand{grid-column:1 / -1;padding:12px 14px 8px;}
   .brand-inner{flex-direction:row;align-items:center;justify-content:space-between;gap:8px;}
@@ -363,7 +383,6 @@ table.record-table td.actions{white-space:nowrap;width:1%;}
   .sidebar-footer .btn-library{margin-top:0 !important;padding:8px 6px;}
   .main{max-width:none;width:100%;padding:16px 14px calc(40px + env(safe-area-inset-bottom,0px));overflow:visible;}
   .tpl-grid{grid-template-columns:1fr;}
-  table.record-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;}
   .modal-backdrop{padding:10px;}
   .modal-body{max-height:70vh;max-height:70dvh;}
   .manual-overlay{padding:0;}
@@ -413,7 +432,7 @@ table.record-table td.actions{white-space:nowrap;width:1%;}
       <button class="nav-btn" id="dashboardNavBtn"><span class="dot"></span>Dashboard</button>
     </div>
     <div class="nav-label">Modules</div>
-    <nav class="module-list" id="moduleList"></nav>
+    <nav class="module-list" id="moduleList" aria-label="Modules"></nav>
     <div class="sidebar-footer">
       <button class="btn-library" id="openLibraryBtn">+ Library</button>
       <button class="btn-library" id="openManualBtn" style="margin-top:6px;">📖 Manual</button>
@@ -427,7 +446,7 @@ table.record-table td.actions{white-space:nowrap;width:1%;}
 <div id="modalRoot"></div>
 
 <div class="manual-overlay" id="manualOverlay">
-  <div class="manual-overlay-box">
+  <div class="manual-overlay-box" role="dialog" aria-modal="true" aria-label="Note Goat — Manual">
     <div class="manual-overlay-head">
       <span>Note Goat — Manual</span>
       <button class="modal-close" id="manualCloseBtn">✕</button>
@@ -489,6 +508,10 @@ const SYNC_TARGET_LABELS = { sheets:'Google Sheets', docx:'Google Docs', calenda
    reads naturally instead. */
 const CALENDAR_REMINDER_MINUTES_ALLDAY = 900;
 const CALENDAR_REMINDER_MINUTES_TIMED = 1440;
+
+// The keys live in the Settings window (its first section is headed
+// Connections). Messages name the button you actually click.
+const NO_ANTHROPIC_KEY_MSG = 'No access passcode set yet — add one in Settings first (⚙ Settings, bottom of the sidebar).';
 
 function uid(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
@@ -709,6 +732,7 @@ const mainArea = document.getElementById('mainArea');
 const moduleListEl = document.getElementById('moduleList');
 const modalRoot = document.getElementById('modalRoot');
 
+let lastViewKey = null;
 function render(){
   saveState();
   renderSidebar();
@@ -716,12 +740,20 @@ function render(){
   else if (state.view.type === 'dashboard') renderDashboard();
   else if (state.view.type === 'module') renderModule(state.view.moduleId);
   mainArea.prepend(syncBarEl);
+  // Going to a different page starts at its top; re-rendering the same
+  // page (ticking a box, opening a card) keeps your place.
+  const viewKey = state.view.type + ':' + (state.view.moduleId || '');
+  if (lastViewKey !== null && viewKey !== lastViewKey){ window.scrollTo(0, 0); mainArea.scrollTop = 0; }
+  lastViewKey = viewKey;
 }
 
 function renderSidebar(){
   const homeBtn = document.getElementById('homeNavBtn');
   homeBtn.classList.toggle('active', state.view.type === 'home');
   document.getElementById('dashboardNavBtn').classList.toggle('active', state.view.type === 'dashboard');
+  const setCurrent = (b, on) => { if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); };
+  setCurrent(homeBtn, state.view.type === 'home');
+  setCurrent(document.getElementById('dashboardNavBtn'), state.view.type === 'dashboard');
 
   moduleListEl.innerHTML = '';
   state.modules.forEach(mod => {
@@ -731,8 +763,10 @@ function renderSidebar(){
     btn.className = 'nav-btn';
     btn.innerHTML = '<span class="dot" style="background:' + colorForKey(mod.name) + '"></span>' + escapeHtml(mod.name);
     btn.onclick = () => { state.view = {type:'module', moduleId: mod.id}; render(); };
+    if (state.view.type === 'module' && state.view.moduleId === mod.id) btn.setAttribute('aria-current', 'page');
     const gear = document.createElement('button');
     gear.className = 'gear'; gear.title = 'Edit module'; gear.textContent = '⚙';
+    gear.setAttribute('aria-label', 'Edit module ' + mod.name);
     gear.onclick = (e) => { e.stopPropagation(); openSchemaModal(mod); };
     row.appendChild(btn); row.appendChild(gear);
     moduleListEl.appendChild(row);
@@ -808,7 +842,7 @@ function renderQuickCaptureCard(){
   const row = el('div', 'quick-capture-row');
   const aiBtn = buttonEl('✨ Clean up with AI', 'btn-secondary', async () => {
     if (!state.settings.proxyPasscode){
-      errBox.innerHTML = ''; errBox.appendChild(el('div', 'error-box', 'No access passcode set yet — add one under Connections first.'));
+      errBox.innerHTML = ''; errBox.appendChild(el('div', 'error-box', NO_ANTHROPIC_KEY_MSG));
       return;
     }
     if (!ta.value.trim() && !photoData){
@@ -820,7 +854,7 @@ function renderQuickCaptureCard(){
       const cleaned = await cleanUpCapture(ta.value.trim(), photoData);
       ta.value = cleaned; // shown for review — not saved yet
     } catch(err){
-      const msg = err.message === 'NO_KEY' ? 'No access passcode set yet — add one under Connections first.'
+      const msg = err.message === 'NO_KEY' ? NO_ANTHROPIC_KEY_MSG
         : 'Couldn\'t clean this up (' + err.message + '). Your original text is untouched — you can still save it as-is.';
       errBox.appendChild(el('div', 'error-box', msg));
     } finally {
@@ -872,7 +906,15 @@ function collapsibleCard(key, title, countText, previewText, bodyRenderer, openS
   right.appendChild(el('div', 'card-count', countText));
   right.appendChild(el('div', 'card-chevron', '›'));
   head.appendChild(right);
-  head.onclick = () => { st[key] = !st[key]; render(); };
+  head.dataset.cardKey = key;
+  makeActivatable(head, () => {
+    st[key] = !st[key];
+    render();
+    // render() rebuilds the page, so put keyboard focus back on this header.
+    const again = mainArea.querySelector('[data-card-key="' + key + '"]');
+    if (again && document.activeElement === document.body) again.focus();
+  });
+  head.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   card.appendChild(head);
   const body = el('div', 'card-body');
   bodyRenderer(body);
@@ -880,39 +922,63 @@ function collapsibleCard(key, title, countText, previewText, bodyRenderer, openS
   return card;
 }
 
+/* Coming up and Next steps read every module, using the same field
+   conventions as the Dashboard (Due = field id "due", else the module's
+   first Date field; Next step = id "next" or label "Next step"; Done =
+   rec.fields.done). */
 function renderComingUpCard(){
+  const today = localIsoDate(new Date());
   const items = [];
-  state.modules.filter(m => m.shape === 'event').forEach(mod => {
-    const df = dateField(mod);
-    if (!df) return;
+  state.modules.forEach(mod => {
     moduleRecords(mod.id).forEach(rec => {
-      const raw = rec.fields[df.id];
-      if (!raw) return;
-      items.push({ mod, rec, date: raw });
+      const date = dueValueOf(mod, rec);
+      if (!date || isDone(rec)) return;
+      // A past date in a Dated / scheduled module is an appointment that
+      // already happened, so it drops off. Anywhere else a past date is
+      // something still open, so it stays at the top instead of vanishing.
+      const past = date < today;
+      if (past && mod.shape === 'event') return;
+      items.push({ mod, rec, date, past });
     });
   });
-  const today = new Date().toISOString().slice(0,10);
-  const upcoming = items.filter(i => i.date >= today).sort((a,b) => a.date < b.date ? -1 : 1);
-  const soonest = upcoming[0];
-  const preview = soonest ? ('Next: ' + recordTitle(soonest.mod, soonest.rec) + ', ' + formatDate(soonest.date) +
-    (upcoming.length > 1 ? ' — ' + (upcoming.length - 1) + ' more' : '')) : 'Nothing scheduled';
-  return collapsibleCard('coming', 'Coming up', String(upcoming.length), preview, (body) => {
-    if (!upcoming.length){ body.appendChild(el('div','empty','Nothing scheduled yet.')); return; }
-    upcoming.forEach(i => body.appendChild(itemRow(i.mod, i.rec, formatDate(i.date))));
+  items.sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const when = i => (i.past ? 'was due ' : '') + formatDate(i.date);
+  const first = items[0];
+  const preview = first ? (recordTitle(first.mod, first.rec) + ', ' + when(first) +
+    (items.length > 1 ? ' — ' + (items.length - 1) + ' more' : '')) : 'Nothing scheduled';
+  return collapsibleCard('coming', 'Coming up', String(items.length), preview, (body) => {
+    if (!items.length){ body.appendChild(el('div','empty','Nothing scheduled yet.')); return; }
+    items.forEach(i => body.appendChild(itemRow(i.mod, i.rec, when(i).replace(/^was/, 'Was'))));
   });
 }
 
 function renderNextStepsCard(){
   const rows = [];
+  // Next Steps–template modules: their items are the steps, tickable here.
   state.modules.filter(m => m.role === 'next-steps').forEach(mod => {
-    moduleRecords(mod.id).forEach(rec => { if (!rec.fields.done) rows.push({mod, rec}); });
+    moduleRecords(mod.id).forEach(rec => { if (!rec.fields.done) rows.push({ mod, rec, tick: true }); });
+  });
+  // Every other module: records with a Next step filled in.
+  state.modules.filter(m => m.role !== 'next-steps').forEach(mod => {
+    moduleRecords(mod.id).forEach(rec => {
+      const next = nextValueOf(mod, rec);
+      if (next && !isDone(rec)) rows.push({ mod, rec, next });
+    });
   });
   const preview = rows.length ? recordTitle(rows[0].mod, rows[0].rec) + (rows.length > 1 ? ' — ' + (rows.length-1) + ' more' : '') : 'Nothing pending';
   return collapsibleCard('next', 'Next steps', String(rows.length), preview, (body) => {
     if (!rows.length){ body.appendChild(el('div','empty','Nothing pending.')); return; }
-    rows.forEach(({mod, rec}) => {
+    rows.forEach(({mod, rec, tick, next}) => {
+      if (!tick){
+        const due = dueValueOf(mod, rec);
+        const row = itemRow(mod, rec, (due ? 'Due ' + formatDate(due) + ' · ' : '') + 'Next: ' + next);
+        row.querySelector('.type-dot').style.background = colorForKey(mod.name);
+        body.appendChild(row);
+        return;
+      }
       const row = el('div', 'checklist-row');
       const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!rec.fields.done;
+      cb.setAttribute('aria-label', 'Done: ' + recordTitle(mod, rec));
       cb.onchange = () => { rec.fields.done = cb.checked; rec.updatedAt = Date.now(); render(); };
       row.appendChild(cb);
       const dot = el('span', 'type-dot', '');
@@ -921,7 +987,7 @@ function renderNextStepsCard(){
       row.appendChild(dot);
       const titleSpan = el('span', 'cl-title', recordTitle(mod, rec));
       titleSpan.style.cursor='pointer';
-      titleSpan.onclick = () => openRecordModal(mod, rec);
+      makeActivatable(titleSpan, () => openRecordModal(mod, rec));
       row.appendChild(titleSpan);
       if (rec.fields.group) row.appendChild(el('span', 'tag-chip', rec.fields.group));
       body.appendChild(row);
@@ -946,11 +1012,23 @@ function itemRow(mod, rec, metaText){
   row.appendChild(el('span', 'type-dot', ''));
   const mainDiv = el('div', 'item-main');
   const t = el('div', 'item-title', recordTitle(mod, rec));
-  t.onclick = () => openRecordModal(mod, rec);
+  makeActivatable(t, () => openRecordModal(mod, rec));
   mainDiv.appendChild(t);
   mainDiv.appendChild(el('div', 'item-meta', mod.name + (metaText ? ' · ' + metaText : '')));
   row.appendChild(mainDiv);
   return row;
+}
+
+/* Something clickable that isn't a <button>: make it reachable with Tab,
+   announced as a button by screen readers, and usable with Enter / Space. */
+function makeActivatable(node, onActivate){
+  node.setAttribute('role', 'button');
+  node.tabIndex = 0;
+  node.onclick = onActivate;
+  node.onkeydown = (e) => {
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); onActivate(e); }
+  };
+  return node;
 }
 
 /* ---------- Dashboard ----------
@@ -1019,6 +1097,8 @@ function renderDashboard(){
   // Settings for N and M — saved on this device only, like the rest of Settings.
   const controls = el('div', 'dash-controls');
   const numInput = (labelText, key, value) => {
+    // An empty or negative entry is ignored and the box shows the last good
+    // value again; the open/closed state of the sections below is kept.
     const lab = el('label', '');
     lab.appendChild(document.createTextNode(labelText));
     const inp = document.createElement('input');
@@ -1060,7 +1140,8 @@ function renderDashboard(){
     }
     head.appendChild(left);
     head.appendChild(el('div', 'card-count', String(recs.length)));
-    head.onclick = () => { state.view = {type:'module', moduleId: mod.id}; render(); };
+    makeActivatable(head, () => { state.view = {type:'module', moduleId: mod.id}; render(); });
+    head.setAttribute('aria-label', 'Open ' + mod.name + ', ' + recs.length + ' record' + (recs.length === 1 ? '' : 's'));
     card.appendChild(head);
     grid.appendChild(card);
   });
@@ -1161,7 +1242,7 @@ function renderFilesView(mod, records){
   records.slice().sort((a,b) => b.updatedAt - a.updatedAt).forEach(rec => {
     const card = el('div', 'record-card');
     card.style.cursor = 'pointer'; card.style.textAlign = 'center';
-    card.onclick = () => openRecordModal(mod, rec);
+    makeActivatable(card, () => openRecordModal(mod, rec));
     const thumbWrap = el('div', ''); thumbWrap.style.height = '90px'; thumbWrap.style.display = 'flex';
     thumbWrap.style.alignItems = 'center'; thumbWrap.style.justifyContent = 'center';
     thumbWrap.style.background = 'var(--surface-sunk)'; thumbWrap.style.borderRadius = '8px'; thumbWrap.style.marginBottom = '8px';
@@ -1195,8 +1276,9 @@ function renderChecklistView(mod, records){
     const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!rec.fields.done;
     cb.onchange = () => { rec.fields.done = cb.checked; rec.updatedAt = Date.now(); render(); };
     row.appendChild(cb);
+    cb.setAttribute('aria-label', 'Done: ' + recordTitle(mod, rec));
     const t = el('span', 'cl-title', recordTitle(mod, rec)); t.style.cursor='pointer';
-    t.onclick = () => openRecordModal(mod, rec);
+    makeActivatable(t, () => openRecordModal(mod, rec));
     row.appendChild(t);
     mod.fields.filter(f => f.id !== primaryField(mod)?.id && f.type !== 'checkbox').forEach(f => {
       if (f.type === 'link-one' || f.type === 'link-many'){
@@ -1251,6 +1333,9 @@ function renderTableView(mod, records, isEvent){
       } else {
         let v = rec.fields[f.id];
         if (f.type === 'date' && v) v = formatDate(v);
+        // A Choice list left unpicked shows its first option in the form
+        // (and counts as it on the Dashboard), so show the same here.
+        if (f.type === 'select' && !v) v = (f.options || [])[0];
         td.textContent = v || '—';
       }
       tr.appendChild(td);
@@ -1265,7 +1350,9 @@ function renderTableView(mod, records, isEvent){
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
-  return table;
+  const wrap = el('div', 'table-wrap');
+  wrap.appendChild(table);
+  return wrap;
 }
 
 function iconBtn(label, onclick){
@@ -1277,19 +1364,41 @@ function iconBtn(label, onclick){
 /* =========================================================
    Modals
    ========================================================= */
-function openModal(titleText, bodyBuilder, footButtons){
+/* The open modal's context. `isDirty` (optional) says whether there are
+   unsaved changes; `returnFocus` is where keyboard focus goes back to when
+   the modal closes. */
+let modalCtx = null;
+
+function openModal(titleText, bodyBuilder, footButtons, opts){
+  // Opening one modal straight from another (Library → name it) keeps the
+  // original place to return focus to.
+  const returnFocus = (modalCtx && modalCtx.returnFocus) || document.activeElement;
   modalRoot.innerHTML = '';
   const backdrop = el('div', 'modal-backdrop');
   const modal = el('div', 'modal');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
   const head = el('div', 'modal-head');
-  head.appendChild(el('h2', '', titleText));
+  const h2 = el('h2', '', titleText);
+  h2.id = uid('dlg');
+  modal.setAttribute('aria-labelledby', h2.id);
+  head.appendChild(h2);
   const closeBtn = document.createElement('button');
   closeBtn.className = 'modal-close'; closeBtn.textContent = '✕';
-  closeBtn.onclick = closeModal;
+  closeBtn.setAttribute('aria-label', 'Close');
+  closeBtn.onclick = requestCloseModal;
   head.appendChild(closeBtn);
   modal.appendChild(head);
   const body = el('div', 'modal-body');
   bodyBuilder(body);
+  // Any label in a field group that isn't tied to its field yet gets tied
+  // to the group's first field, so screen readers read them together.
+  body.querySelectorAll('.field-group').forEach(grp => {
+    const lab = grp.querySelector(':scope > label.field-label');
+    if (!lab || lab.htmlFor || lab.id) return; // already tied (htmlFor), or names a group (id)
+    const field = grp.querySelector('input:not([type=hidden]):not([type=file]), select, textarea');
+    if (field && !field.id && !field.getAttribute('aria-labelledby')) linkLabel(lab, field);
+  });
   modal.appendChild(body);
   if (footButtons && footButtons.length){
     const foot = el('div', 'modal-foot');
@@ -1297,10 +1406,62 @@ function openModal(titleText, bodyBuilder, footButtons){
     modal.appendChild(foot);
   }
   backdrop.appendChild(modal);
-  backdrop.onclick = (e) => { if (e.target === backdrop) closeModal(); };
+  backdrop.onclick = (e) => { if (e.target === backdrop) requestCloseModal(); };
   modalRoot.appendChild(backdrop);
+  modalCtx = { isDirty: (opts && opts.isDirty) || null, returnFocus };
+  // Start keyboard focus inside the box: first field, else first button.
+  const first = body.querySelector('input:not([type=hidden]):not([disabled]):not([style*="display: none"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])')
+    || modal.querySelector('.modal-foot button') || closeBtn;
+  // On touch screens, don't pop the on-screen keyboard just for opening a
+  // record — focus the close button instead (screen readers still land in
+  // the box).
+  const target = (window.matchMedia && matchMedia('(pointer: coarse)').matches) ? closeBtn : first;
+  try { target.focus({ preventScroll: true }); } catch(e){}
 }
-function closeModal(){ modalRoot.innerHTML = ''; }
+function closeModal(){
+  modalRoot.innerHTML = '';
+  const back = modalCtx && modalCtx.returnFocus;
+  modalCtx = null;
+  if (back && back.isConnected && typeof back.focus === 'function'){ try { back.focus({ preventScroll: true }); } catch(e){} }
+}
+/* Closing without saving — ✕, a click outside the box, or Escape. If the
+   box has unsaved changes, ask first instead of silently dropping them.
+   (The Cancel button is the explicit "throw this away" and doesn't ask.) */
+async function requestCloseModal(){
+  if (!modalRoot.firstChild) return;
+  if (modalCtx && modalCtx.isDirty && modalCtx.isDirty()){
+    const ok = await confirmModal('You have unsaved changes. Close without saving them?');
+    if (!ok) return;
+  }
+  closeModal();
+}
+
+/* Keyboard: Escape closes the top-most box (a confirm first, then the
+   modal, then the Manual); Tab stays inside an open box. */
+document.addEventListener('keydown', (e) => {
+  const manual = document.getElementById('manualOverlay');
+  const layers = modalRoot.querySelectorAll(':scope > .modal-backdrop');
+  const top = layers.length ? layers[layers.length - 1] : null;
+  if (e.key === 'Escape'){
+    if (top){
+      e.preventDefault();
+      if (top._cancel) top._cancel(); else requestCloseModal();
+    } else if (manual && manual.classList.contains('open')){
+      e.preventDefault();
+      closeManual();
+    }
+    return;
+  }
+  if (e.key === 'Tab' && top){
+    const focusables = Array.from(top.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+      .filter(n => !n.disabled && n.offsetParent !== null);
+    if (!focusables.length) return;
+    const firstEl = focusables[0], lastEl = focusables[focusables.length - 1];
+    if (!top.contains(document.activeElement)){ e.preventDefault(); firstEl.focus(); }
+    else if (e.shiftKey && document.activeElement === firstEl){ e.preventDefault(); lastEl.focus(); }
+    else if (!e.shiftKey && document.activeElement === lastEl){ e.preventDefault(); firstEl.focus(); }
+  }
+});
 
 /* Lightweight styled confirm, returns a Promise<boolean>. Appended as an
    overlay on top of modalRoot rather than replacing it, so confirming or
@@ -1312,8 +1473,13 @@ function confirmModal(message){
     overlay.style.zIndex = '60';
     const modal = el('div', 'modal');
     modal.style.maxWidth = '420px';
+    modal.setAttribute('role', 'alertdialog');
+    modal.setAttribute('aria-modal', 'true');
     const head = el('div', 'modal-head');
-    head.appendChild(el('h2', '', 'Are you sure?'));
+    const h2 = el('h2', '', 'Are you sure?');
+    h2.id = uid('dlg');
+    modal.setAttribute('aria-labelledby', h2.id);
+    head.appendChild(h2);
     modal.appendChild(head);
     const body = el('div', 'modal-body');
     const msgDiv = document.createElement('div');
@@ -1321,13 +1487,25 @@ function confirmModal(message){
     msgDiv.innerHTML = message;
     body.appendChild(msgDiv);
     modal.appendChild(body);
+    msgDiv.id = uid('dlg');
+    modal.setAttribute('aria-describedby', msgDiv.id);
+    const returnFocus = document.activeElement;
+    const finish = (answer) => {
+      overlay.remove();
+      if (returnFocus && returnFocus.isConnected){ try { returnFocus.focus({ preventScroll: true }); } catch(e){} }
+      resolve(answer);
+    };
     const foot = el('div', 'modal-foot');
-    foot.appendChild(buttonEl('Cancel', 'btn-secondary', () => { overlay.remove(); resolve(false); }));
-    foot.appendChild(buttonEl('Continue', 'btn-danger', () => { overlay.remove(); resolve(true); }));
+    const cancelBtn = buttonEl('Cancel', 'btn-secondary', () => finish(false));
+    foot.appendChild(cancelBtn);
+    foot.appendChild(buttonEl('Continue', 'btn-danger', () => finish(true)));
     modal.appendChild(foot);
     overlay.appendChild(modal);
-    overlay.onclick = (e) => { if (e.target === overlay){ overlay.remove(); resolve(false); } };
+    overlay.onclick = (e) => { if (e.target === overlay) finish(false); };
+    overlay._cancel = () => finish(false); // Escape
     modalRoot.appendChild(overlay);
+    // Safer default: Enter on an "are you sure" answers Cancel.
+    try { cancelBtn.focus({ preventScroll: true }); } catch(e){}
   });
 }
 function buttonEl(text, cls, onclick){
@@ -1372,9 +1550,11 @@ function promptModuleName(tpl){
   openModal('Name this module', (body) => {
     body.appendChild(el('div', 'field-hint', 'Based on the "' + tpl.name + '" template — name it whatever makes sense to you.'));
     const grp = el('div', 'field-group');
-    grp.appendChild(el('label', 'field-label', 'Module name'));
+    const nameLabel = el('label', 'field-label', 'Module name');
+    grp.appendChild(nameLabel);
     const input = document.createElement('input');
     input.type = 'text'; input.value = tpl.name; input.className = 'field-input';
+    linkLabel(nameLabel, input);
     grp.appendChild(input);
     body.appendChild(grp);
     setTimeout(() => { input.focus(); input.select(); }, 30);
@@ -1421,7 +1601,7 @@ function openAIModuleDialog(){
       if (!desc){ alert('Describe what you need first.'); return; }
       if (!state.settings.proxyPasscode){
         body._errBox.innerHTML = '';
-        body._errBox.appendChild(el('div', 'error-box', 'No access passcode set yet — add one under Connections first.'));
+        body._errBox.appendChild(el('div', 'error-box', NO_ANTHROPIC_KEY_MSG));
         return;
       }
       const btn = e.target; const origText = btn.textContent;
@@ -1433,7 +1613,7 @@ function openAIModuleDialog(){
         openSchemaModal(null, draft);
       } catch(err){
         btn.disabled = false; btn.textContent = origText;
-        const msg = err.message === 'NO_KEY' ? 'No access passcode set yet — add one under Connections first.'
+        const msg = err.message === 'NO_KEY' ? NO_ANTHROPIC_KEY_MSG
           : 'Couldn\'t get a proposal (' + err.message + '). You can try again, or build the module manually instead.';
         body._errBox.innerHTML = '';
         body._errBox.appendChild(el('div', 'error-box', msg));
@@ -1512,16 +1692,20 @@ function openSchemaModal(mod, prefill){
       body.appendChild(el('div', 'shape-note', '✨ ' + prefill.rationale + ' Review and adjust anything below before creating it.'));
     }
     const nameGrp = el('div', 'field-group');
-    nameGrp.appendChild(el('label', 'field-label', 'Module name'));
+    const nameLabel = el('label', 'field-label', 'Module name');
+    nameGrp.appendChild(nameLabel);
     const nameInput = document.createElement('input');
     nameInput.type = 'text'; nameInput.className = 'field-input';
     nameInput.value = isEdit ? mod.name : (prefill ? prefill.name : '');
+    linkLabel(nameLabel, nameInput);
     nameGrp.appendChild(nameInput);
     body.appendChild(nameGrp);
 
     const shapeGrp = el('div', 'field-group');
-    shapeGrp.appendChild(el('label', 'field-label', 'Shape'));
+    const shapeLabel = el('label', 'field-label', 'Shape');
+    shapeGrp.appendChild(shapeLabel);
     const shapeSelect = document.createElement('select');
+    linkLabel(shapeLabel, shapeSelect);
     Object.keys(SHAPES).forEach(k => {
       const opt = document.createElement('option'); opt.value = k; opt.textContent = SHAPES[k].label;
       if (k === draftShape) opt.selected = true;
@@ -1546,9 +1730,11 @@ function openSchemaModal(mod, prefill){
         const row = el('div', 'schema-field-row');
         const labelInput = document.createElement('input');
         labelInput.type = 'text'; labelInput.value = f.label; labelInput.placeholder = 'Field label';
+        labelInput.setAttribute('aria-label', 'Field ' + (idx + 1) + ' name');
         labelInput.oninput = () => { f.label = labelInput.value; };
         row.appendChild(labelInput);
         const typeSelect = document.createElement('select');
+        typeSelect.setAttribute('aria-label', 'Field ' + (idx + 1) + ' type');
         Object.keys(FIELD_TYPES).forEach(tk => {
           const opt = document.createElement('option'); opt.value = tk; opt.textContent = FIELD_TYPES[tk].label;
           if (tk === f.type) opt.selected = true;
@@ -1562,6 +1748,7 @@ function openSchemaModal(mod, prefill){
         row.appendChild(typeSelect);
         const rm = document.createElement('button');
         rm.className = 'rm-field'; rm.textContent = '✕'; rm.title = 'Remove field';
+        rm.setAttribute('aria-label', 'Remove field ' + (f.label || (idx + 1)));
         rm.onclick = async () => { await attemptFieldRemoval(f, idx); };
         row.appendChild(rm);
         wrapper.appendChild(row);
@@ -1653,7 +1840,10 @@ function openSchemaModal(mod, prefill){
 
     body._nameInput = nameInput;
     body._getDraft = () => ({ name: nameInput.value.trim(), shape: draftShape, fields: draftFields });
-  }, buildSchemaFooter(mod, isEdit));
+  }, buildSchemaFooter(mod, isEdit), { isDirty: () => schemaSig() !== startSchemaSig });
+  const schemaBody = modalRoot.querySelector('.modal-body');
+  const schemaSig = () => JSON.stringify(schemaBody._getDraft());
+  const startSchemaSig = schemaSig();
 }
 
 function buildSchemaFooter(mod, isEdit){
@@ -1783,7 +1973,8 @@ function openRecordModal(mod, rec){
     }
     mod.fields.forEach(f => {
       const grp = el('div', 'field-group');
-      grp.appendChild(el('label', 'field-label', f.label));
+      const labelEl = el('label', 'field-label', f.label);
+      grp.appendChild(labelEl);
       let input;
       if (f.type === 'longtext'){
         input = document.createElement('textarea');
@@ -1791,7 +1982,15 @@ function openRecordModal(mod, rec){
         input.oninput = () => draft.fields[f.id] = input.value;
       } else if (f.type === 'select'){
         input = document.createElement('select');
-        (f.options||[]).forEach(opt => {
+        const opts = (f.options || []).slice();
+        // What the box shows is what gets saved: an unpicked list starts on
+        // its first option (it used to show that option but save nothing),
+        // and a stored value that's no longer an option stays visible
+        // rather than silently showing — and saving — a different one.
+        const cur = draft.fields[f.id];
+        if (cur && !opts.includes(cur)) opts.unshift(cur);
+        if (!cur && opts.length) draft.fields[f.id] = opts[0];
+        opts.forEach(opt => {
           const o = document.createElement('option'); o.value = opt; o.textContent = opt;
           if (draft.fields[f.id] === opt) o.selected = true;
           input.appendChild(o);
@@ -1857,6 +2056,7 @@ function openRecordModal(mod, rec){
         input.value = draft.fields[f.id] || '';
         input.oninput = () => draft.fields[f.id] = input.value;
       }
+      linkLabel(labelEl, input);
       grp.appendChild(input);
       body.appendChild(grp);
     });
@@ -1885,14 +2085,67 @@ function openRecordModal(mod, rec){
     }
 
     const notesGrp = el('div', 'field-group');
-    notesGrp.appendChild(el('label', 'field-label', 'Notes'));
+    const notesLabel = el('label', 'field-label', 'Notes');
+    notesGrp.appendChild(notesLabel);
     const notesArea = document.createElement('textarea');
     notesArea.value = draft.notes || '';
     notesArea.placeholder = 'Anything else about this specific record.';
     notesArea.oninput = () => draft.notes = notesArea.value;
+    linkLabel(notesLabel, notesArea);
     notesGrp.appendChild(notesArea);
     body.appendChild(notesGrp);
-  }, buildRecordFooter(mod, rec, draft));
+  }, buildRecordFooter(mod, rec, draft), { isDirty: () => draftSignature(draft) !== startSig || !!draft.pendingFile || !!draft.removeAttachment });
+  // Taken after the form is built, so defaults the form fills in (like a
+  // Choice list's first option) don't count as a change.
+  const startSig = draftSignature(draft);
+}
+
+/* A comparable fingerprint of a record draft, ignoring empty values — so
+   typing something and deleting it again isn't "unsaved changes". */
+function draftSignature(draft){
+  const blank = v => v == null || v === '' || v === false || (Array.isArray(v) && !v.length);
+  const keys = Object.keys(draft.fields).filter(k => !blank(draft.fields[k])).sort();
+  return JSON.stringify([keys.map(k => [k, draft.fields[k]]), String(draft.notes || '').trim()]);
+}
+
+/* True if a new record has anything a person actually typed or chose —
+   a Choice list's or checkbox's default alone doesn't count. */
+function draftHasContent(mod, draft){
+  if (draft.pendingFile) return true;
+  if (String(draft.notes || '').trim()) return true;
+  return mod.fields.some(f => {
+    if (f.type === 'select' || f.type === 'checkbox') return false;
+    const v = draft.fields[f.id];
+    return Array.isArray(v) ? v.length > 0 : String(v == null ? '' : v).trim() !== '';
+  });
+}
+
+/* Tie a <label> to its field so screen readers read the label with it. */
+function linkLabel(labelEl, input){
+  if (!input) return;
+  const target = (input.tagName === 'INPUT' || input.tagName === 'SELECT' || input.tagName === 'TEXTAREA') ? input : null;
+  if (target){
+    if (!target.id) target.id = uid('f');
+    labelEl.htmlFor = target.id;
+  } else {
+    // A group of checkboxes (link-many): name the group by the label.
+    if (!labelEl.id) labelEl.id = uid('lbl');
+    input.setAttribute('role', 'group');
+    input.setAttribute('aria-labelledby', labelEl.id);
+  }
+}
+
+/* Show a message at the top of the open modal's body. */
+function showModalError(text){
+  const body = modalRoot.querySelector('.modal-body');
+  if (!body) return;
+  const old = body.querySelector('.modal-save-error');
+  if (old) old.remove();
+  const box = el('div', 'error-box modal-save-error', text);
+  box.setAttribute('role', 'alert');
+  box.style.marginTop = '0'; box.style.marginBottom = '12px';
+  body.prepend(box);
+  body.scrollTop = 0;
 }
 
 function buildRecordFooter(mod, rec, draft){
@@ -1913,6 +2166,12 @@ function buildRecordFooter(mod, rec, draft){
   }
   buttons.push(buttonEl('Cancel', 'btn-secondary', closeModal));
   const saveBtn = buttonEl(rec ? 'Save' : 'Add', 'btn-primary', async () => {
+    if (!rec && !draftHasContent(mod, draft)){
+      showModalError(mod.fields.length
+        ? 'Nothing to add yet — fill in at least one field first.'
+        : 'Nothing to add yet — write something in Notes first.');
+      return;
+    }
     saveBtn.disabled = true;
     try {
       let attachment = draft.attachment;
@@ -2735,7 +2994,7 @@ window.addEventListener('offline', () => {
 function tryInitGoogle(promptSignIn, onConnected, onFailed, _attempt){
   _attempt = _attempt || 0;
   if (!state.settings.googleClientId || !state.settings.googleApiKey){
-    if (onFailed) onFailed('Google isn\'t configured — add a Client ID and API key under Connections first.');
+    if (onFailed) onFailed('Google isn\'t configured — add a Client ID and API key in Settings first.');
     return;
   }
   if (typeof gapi === 'undefined' || typeof google === 'undefined' || !google.accounts){
@@ -2888,7 +3147,7 @@ function syncStatus(box, text, isError){
 
 async function runSync(mod, target, statusBox){
   if (!state.settings.googleClientId || !state.settings.googleApiKey){
-    syncStatus(statusBox, 'Google isn\'t configured yet — add your Client ID and API key under Connections first.', true);
+    syncStatus(statusBox, 'Google isn\'t configured yet — add your Client ID and API key in Settings first.', true);
     return;
   }
   if (!googleRt.connected){
@@ -3132,10 +3391,25 @@ let manualLoaded = false;
 document.getElementById('openManualBtn').onclick = () => {
   const frame = document.getElementById('manualFrame');
   if (!manualLoaded){ frame.srcdoc = MANUAL_HTML; manualLoaded = true; }
+  manualReturnFocus = document.activeElement;
   document.getElementById('manualOverlay').classList.add('open');
+  try { document.getElementById('manualCloseBtn').focus({ preventScroll: true }); } catch(e){}
 };
-document.getElementById('manualCloseBtn').onclick = () => document.getElementById('manualOverlay').classList.remove('open');
-document.getElementById('manualOverlay').onclick = (e) => { if (e.target.id === 'manualOverlay') document.getElementById('manualOverlay').classList.remove('open'); };
+let manualReturnFocus = null;
+function closeManual(){
+  document.getElementById('manualOverlay').classList.remove('open');
+  if (manualReturnFocus && manualReturnFocus.isConnected){ try { manualReturnFocus.focus({ preventScroll: true }); } catch(e){} }
+  manualReturnFocus = null;
+}
+document.getElementById('manualCloseBtn').onclick = closeManual;
+document.getElementById('manualCloseBtn').setAttribute('aria-label', 'Close the Manual');
+document.getElementById('manualOverlay').onclick = (e) => { if (e.target.id === 'manualOverlay') closeManual(); };
+// Escape inside the Manual's own frame closes it too (it's same-origin srcdoc).
+document.getElementById('manualFrame').addEventListener('load', () => {
+  try {
+    document.getElementById('manualFrame').contentDocument.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeManual(); });
+  } catch(e){}
+});
 
 const MANUAL_HTML = `<!doctype html>
 <html><head><meta charset="utf-8">
@@ -3225,7 +3499,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
       <section id="home">
         <p class="sec-num">01</p>
         <h2>The Home page</h2>
-        <p>Four cards, deliberately not a dashboard trying to show everything: <b>Quick capture</b> (see below), and three collapsed cards — <b>Coming up</b> (records in your Dated / scheduled modules, from today on, soonest first), <b>Next steps</b> (unticked items from modules made with the Next Steps template — tick them done right on the card), and <b>Unanswered questions</b> (open items from modules made with the Unanswered Questions template). Click a card's header to expand it into the full list; click a row's title to open that record.</p>
+        <p>Four cards, deliberately not a dashboard trying to show everything: <b>Quick capture</b> (see below), and three collapsed cards — <b>Coming up</b> (every record in any module with a due date and not done, soonest first; a date that has already passed stays at the top marked "was due", except in Dated / scheduled modules, where a past appointment simply drops off), <b>Next steps</b> (unticked items from modules made with the Next Steps template — tick them done right on the card — plus every record in any other module with a Next step filled in), and <b>Unanswered questions</b> (open items from modules made with the Unanswered Questions template). Coming up and Next steps find the due date and next step the same way the Dashboard does — see "Which fields the Dashboard reads". Click a card's header to expand it into the full list; click a row's title to open that record.</p>
         <p>A bare count is avoided on purpose — you'll always see the soonest item alongside the number, not just a number with no content behind it.</p>
       </section>
 
@@ -3258,7 +3532,7 @@ footer{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);color:v
         <p>A <b>module</b> is a named category with its own fields — Contacts, Bills, Projects, whatever you need. Every module has a <b>shape</b> that decides how its records are displayed and which sync targets make sense for it: repeating rows (a table), freeform notes, a checklist, a dated/scheduled thing, or a file/photo.</p>
         <p>Open the <b>Library</b> (sidebar) to add one. Three ways in:</p>
         <ol class="steps">
-          <li><b>Pick a template</b> — the Starters: Checklist, Notes, Next Steps, Unanswered Questions, Files &amp; Photos, and Appointments (What, Date, Time, Where). Next Steps and Unanswered Questions feed the Home cards of the same name; Appointments feeds Coming up. Name it whatever you want; templates are a starting point, not a locked configuration.</li>
+          <li><b>Pick a template</b> — the Starters: Checklist, Notes, Next Steps, Unanswered Questions, Files &amp; Photos, and Appointments (What, Date, Time, Where). Unanswered Questions feeds the Home card of the same name, and Next Steps items show on the Next steps card with a tick box. (Coming up and Next steps also read every other module.) Name it whatever you want; templates are a starting point, not a locked configuration.</li>
           <li><b>Describe what you need</b> — the prominent option under Custom. Tell the AI what you're trying to track and it proposes a name, shape, fields, and links to modules you already have. Nothing is created yet — you land in the ordinary module editor with that proposal pre-filled, free to change anything, and you still click Create.</li>
           <li><b>Advanced: build it yourself</b> — the small link under the AI option. Pick a shape and add fields one at a time, no AI involved. Same editor either way.</li>
         </ol>
